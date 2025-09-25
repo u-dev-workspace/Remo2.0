@@ -1,0 +1,61 @@
+import { Injectable, ConflictException, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import * as argon2 from 'argon2';
+import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
+
+type RegisterInput = {
+    email: string; password: string;
+    role: 'CLIENT' | 'CONTRACTOR'; name: string; city: string;
+};
+
+@Injectable()
+export class AuthService {
+    constructor(private prisma: PrismaService, private jwt: JwtService) {}
+
+    async register(data: RegisterInput) {
+        try {
+            const hash = await argon2.hash(data.password);
+
+            const user = await this.prisma.user.create({
+                data: {
+                    email: data.email,
+                    passwordHash: hash,
+                    role: data.role as any,
+                    name: data.name,
+                    city: data.city,
+                },
+            });
+
+            // Если это исполнитель — создаём карточку Contractor (требуется твоей схемой)
+            if (data.role === 'CONTRACTOR') {
+                await this.prisma.contractor.create({
+                    data: { userId: user.id, companyName: null, about: null },
+                });
+            }
+
+            return this.issueTokens(user.id, user.role);
+        } catch (e: any) {
+            // Prisma уникальность email
+            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+                throw new ConflictException('Email already in use');
+            }
+            console.error('REGISTER_ERROR', e);
+            throw new InternalServerErrorException('REGISTER_FAILED');
+        }
+    }
+
+    async login(email: string, password: string) {
+        const user = await this.prisma.user.findUnique({ where: { email } });
+        if (!user || !user.passwordHash || !(await argon2.verify(user.passwordHash, password))) {
+            throw new UnauthorizedException('AUTH_INVALID_CREDENTIALS');
+        }
+        return this.issueTokens(user.id, user.role);
+    }
+
+    private async issueTokens(userId: string, role: string) {
+        const access = await this.jwt.signAsync({ sub: userId, role }, { expiresIn: '15m' });
+        const refresh = await this.jwt.signAsync({ sub: userId, role, typ: 'refresh' }, { expiresIn: '30d' });
+        return { accessToken: access, refreshToken: refresh };
+    }
+}

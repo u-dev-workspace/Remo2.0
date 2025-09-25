@@ -1,0 +1,578 @@
+openapi: 3.0.3
+info:
+  title: Remo API
+  version: "1.0.1"
+  description: >
+    API для платформы подбора подрядчиков (ремонт/стройка).
+    MVP: регистрация/логин, категории, проекты, лента для исполнителя, диалоги и чат, загрузка и управление вложениями проектов.
+
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: Auth
+  - name: Categories
+  - name: Projects
+  - name: Conversations
+  - name: Uploads
+  - name: Billing
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register user (CLIENT or CONTRACTOR)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            examples:
+              client:
+                value:
+                  email: client2@test.com
+                  password: secret123
+                  role: CLIENT
+                  name: Клиент
+                  city: Almaty
+              contractor:
+                value:
+                  email: pro2@test.com
+                  password: secret123
+                  role: CONTRACTOR
+                  name: Исполнитель
+                  city: Almaty
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "409": { description: Email already in use }
+        "500": { description: REGISTER_FAILED }
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email & password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "401": { description: AUTH_INVALID_CREDENTIALS }
+
+  /api/v1/categories:
+    get:
+      tags: [Categories]
+      summary: List categories
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Category" }
+    post:
+      tags: [Categories]
+      summary: Create category (ADMIN)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201": { description: Created }
+        "403": { description: Forbidden }
+
+  /api/v1/projects:
+    post:
+      tags: [Projects]
+      summary: Create project (CLIENT)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProjectCreate" }
+            examples:
+              sample:
+                value:
+                  title: Ремонт кухни 15м²
+                  description: Плитка, фартук, перенос розеток, установка мойки
+                  categories: ["{categoryId}"]
+                  placeType: apartment
+                  areaM2: 15
+                  budgetMin: 200000
+                  budgetMax: 500000
+                  city: Almaty
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "400": { description: VALIDATION_ERROR }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+    get:
+      tags: [Projects]
+      summary: List open projects (feed for CONTRACTOR)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 50 }
+        - in: query
+          name: city
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PaginatedProjects" }
+
+  /api/v1/projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Get project by id (participants or ADMIN)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Project" }
+        "404": { description: PROJECT_NOT_FOUND }
+
+  # ---- Project attachments (gallery) ----
+  /api/v1/projects/{projectId}/attachments:
+    get:
+      tags: [Projects]
+      summary: List project attachments (gallery)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Attachment" }
+    post:
+      tags: [Projects]
+      summary: Register uploaded attachment to project (owner/Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AttachmentCreate" }
+            examples:
+              sample:
+                value:
+                  objectKey: "projects/{projectId}/uuid.jpg"
+                  url: "http://localhost:9000/uploads/projects/{projectId}/uuid.jpg"
+                  mime: "image/jpeg"
+                  width: 1024
+                  height: 768
+                  sizeBytes: 1234567
+                  caption: "Кухня — вид 1"
+                  isCover: true
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Attachment" }
+        "403": { description: Forbidden }
+        "404": { description: Project not found }
+
+  /api/v1/projects/{projectId}/attachments/{attachmentId}:
+    patch:
+      tags: [Projects]
+      summary: Update attachment fields (caption / isCover)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: attachmentId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AttachmentUpdate" }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Attachment" }
+        "404": { description: Attachment not found }
+    delete:
+      tags: [Projects]
+      summary: Delete attachment (and remove from storage)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: attachmentId
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+        "404": { description: Attachment not found }
+
+  /api/v1/projects/{projectId}/attachments/order:
+    patch:
+      tags: [Projects]
+      summary: Reorder attachments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [id, sortOrder]
+                    properties:
+                      id: { type: string }
+                      sortOrder: { type: integer }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+        "400": { description: Some attachments not found }
+
+  # ---- Uploads (presigned URLs) ----
+  /api/v1/uploads/presign:
+    post:
+      tags: [Uploads]
+      summary: Get presigned PUT URL for direct upload to S3/MinIO
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PresignRequest" }
+            examples:
+              jpeg:
+                value:
+                  projectId: "{projectId}"
+                  mime: "image/jpeg"
+                  sizeBytes: 1234567
+                  ext: "jpg"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PresignResponse" }
+        "400": { description: Unsupported mime / File too large }
+        "401": { description: Unauthorized }
+
+  /api/v1/conversations/{projectId}/contact:
+    post:
+      tags: [Conversations]
+      summary: Create or get conversation for project (CONTRACTOR)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Created/Found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Conversation" }
+        "403": { description: PAYMENT_REQUIRED or Forbidden }
+        "404": { description: PROJECT_NOT_FOUND }
+
+  /api/v1/conversations/{projectId}:
+    get:
+      tags: [Conversations]
+      summary: List my conversations for a project (CLIENT or CONTRACTOR)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Conversation" }
+
+  /api/v1/conversations/messages/{conversationId}:
+    get:
+      tags: [Conversations]
+      summary: List messages in conversation
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 30, maximum: 100 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Message" }
+    post:
+      tags: [Conversations]
+      summary: Send message in conversation
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: conversationId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessageCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Message" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AuthTokens:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+
+    RegisterRequest:
+      type: object
+      required: [email, password, role, name, city]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+        role:
+          type: string
+          enum: [CLIENT, CONTRACTOR]
+        name: { type: string, minLength: 2 }
+        city: { type: string, minLength: 2 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8 }
+
+    Category:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+
+    ProjectCreate:
+      type: object
+      required: [title, description, categories, placeType, city]
+      properties:
+        title: { type: string, minLength: 5, maxLength: 120 }
+        description: { type: string, minLength: 20, maxLength: 5000 }
+        categories:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items: { type: string }
+        placeType:
+          type: string
+          enum: [apartment, office, shop, house, other]
+        areaM2: { type: integer, minimum: 1, maximum: 10000, nullable: true }
+        budgetMin: { type: integer, minimum: 0, nullable: true }
+        budgetMax: { type: integer, nullable: true }
+        city: { type: string }
+
+    Project:
+      type: object
+      properties:
+        id: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        status: { type: string, enum: [OPEN, IN_TALK, CLOSED, ARCHIVED] }
+        clientId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        placeType: { type: string }
+        areaM2: { type: integer, nullable: true }
+        budgetMin: { type: integer, nullable: true }
+        budgetMax: { type: integer, nullable: true }
+        city: { type: string, nullable: true }
+        categories:
+          type: array
+          items: { $ref: "#/components/schemas/Category" }
+
+    PaginatedProjects:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Project" }
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+
+    Conversation:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        clientId: { type: string }
+        contractorId: { type: string }
+
+    MessageCreate:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1 }
+
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        createdAt: { type: string, format: date-time }
+        conversationId: { type: string }
+        senderId: { type: string }
+        text: { type: string, nullable: true }
+        attachmentUrl: { type: string, nullable: true }
+        readAt: { type: string, format: date-time, nullable: true }
+
+    # ---- Uploads / Attachments ----
+    PresignRequest:
+      type: object
+      required: [projectId, mime, sizeBytes]
+      properties:
+        projectId: { type: string }
+        mime:
+          type: string
+          enum: [image/jpeg, image/png, image/webp, image/heic, image/avif]
+        sizeBytes: { type: integer, minimum: 1 }
+        ext:
+          type: string
+          description: Optional explicit extension (e.g., "jpg"). If omitted, inferred from mime.
+
+    PresignResponse:
+      type: object
+      properties:
+        uploadUrl: { type: string, description: "Signed PUT URL" }
+        objectKey: { type: string, description: "Storage key (to persist in DB)" }
+        url: { type: string, description: "Public URL (if bucket public). Otherwise, keep key." }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+
+    Attachment:
+      type: object
+      properties:
+        id: { type: string }
+        projectId: { type: string }
+        url: { type: string }
+        mime: { type: string }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        sizeBytes: { type: integer, nullable: true }
+        caption: { type: string, nullable: true }
+        sortOrder: { type: integer }
+        isCover: { type: boolean }
+        objectKey: { type: string }
+        checksum: { type: string, nullable: true }
+
+    AttachmentCreate:
+      type: object
+      required: [objectKey, url, mime]
+      properties:
+        objectKey: { type: string }
+        url: { type: string }
+        mime: { type: string }
+        width: { type: integer, nullable: true }
+        height: { type: integer, nullable: true }
+        sizeBytes: { type: integer, nullable: true }
+        caption: { type: string, nullable: true }
+        isCover: { type: boolean, default: false }
+
+    AttachmentUpdate:
+      type: object
+      properties:
+        caption: { type: string, nullable: true }
+        isCover: { type: boolean }
