@@ -125,25 +125,15 @@ model Attachment {
 }
 
 model ContractorAttachment {
-  id           String     @id @default(cuid())
+  id           String     @id @default(uuid())
   contractorId String
-  contractor   Contractor @relation(fields: [contractorId], references: [id])
-
-  url       String
-  mime      String
-  width     Int?
-  height    Int?
-  sizeBytes Int?
-
-  caption   String?
-  sortOrder Int     @default(0)
-  isCover   Boolean @default(false)
-  objectKey String  @unique
-  checksum  String? @unique
-
-  createdAt DateTime @default(now())
-
-  @@index([contractorId, sortOrder])
+  filename     String
+  path         String
+  mimetype     String?
+  size         Int?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  Contractor   Contractor @relation(fields: [contractorId], references: [id])
 }
 
 model Conversation {

@@ -82,6 +82,20 @@ CREATE TABLE `Attachment` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `ContractorAttachment` (
+    `id` VARCHAR(191) NOT NULL,
+    `contractorId` VARCHAR(191) NOT NULL,
+    `filename` VARCHAR(191) NOT NULL,
+    `path` VARCHAR(191) NOT NULL,
+    `mimetype` VARCHAR(191) NULL,
+    `size` INTEGER NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `Conversation` (
     `id` VARCHAR(191) NOT NULL,
     `projectId` VARCHAR(191) NOT NULL,
@@ -151,6 +165,9 @@ ALTER TABLE `Project` ADD CONSTRAINT `Project_clientId_fkey` FOREIGN KEY (`clien
 
 -- AddForeignKey
 ALTER TABLE `Attachment` ADD CONSTRAINT `Attachment_projectId_fkey` FOREIGN KEY (`projectId`) REFERENCES `Project`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ContractorAttachment` ADD CONSTRAINT `ContractorAttachment_contractorId_fkey` FOREIGN KEY (`contractorId`) REFERENCES `Contractor`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Conversation` ADD CONSTRAINT `Conversation_projectId_fkey` FOREIGN KEY (`projectId`) REFERENCES `Project`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
