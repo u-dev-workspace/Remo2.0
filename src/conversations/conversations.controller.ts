@@ -1,34 +1,38 @@
-// src/conversations/conversations.controller.ts
-// УДАЛИ: import { Request } from 'express';
-import { Controller, Post, Get, Param, Query, Body, UseGuards, Req } from '@nestjs/common';
+import {
+    Controller, Get, Post, Param, Body, UseGuards, Req, Query, UsePipes, ValidationPipe,
+} from '@nestjs/common';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { ConversationsService } from './conversations.service';
+import { CreateMessageDto } from './dto/create-message.dto';
+import { ListMessagesQueryDto } from './dto/list-messages.query.dto';
 
+@UseGuards(JwtGuard)
 @Controller('api/v1/conversations')
 export class ConversationsController {
     constructor(private readonly service: ConversationsService) {}
 
-    @UseGuards(JwtGuard)
     @Post(':projectId/contact')
-    contact(@Param('projectId') projectId: string, @Req() req: any) {
+    async contact(@Param('projectId') projectId: string, @Req() req: any) {
         return this.service.contact(projectId, req.user.userId);
     }
 
-    @UseGuards(JwtGuard)
-    @Get(':projectId')
-    list(@Param('projectId') projectId: string, @Req() req: any) {
-        return this.service.listByProject(projectId, req.user.userId);
-    }
-
-    @UseGuards(JwtGuard)
     @Get('messages/:conversationId')
-    msgs(@Param('conversationId') id: string, @Query() q: any) {
-        return this.service.listMessages(id, Number(q.page ?? 1), Number(q.limit ?? 30));
+    async list(
+      @Param('conversationId') conversationId: string,
+      @Query(new ValidationPipe({ transform: true })) query: ListMessagesQueryDto,
+    ) {
+        const { page, limit } = query;
+        const items = await this.service.listMessages(conversationId, page, limit);
+        return { items, page, limit };
     }
 
-    @UseGuards(JwtGuard)
     @Post('messages/:conversationId')
-    send(@Param('conversationId') id: string, @Req() req: any, @Body() dto: { text: string }) {
-        return this.service.sendMessage(id, req.user.userId, dto.text);
+    @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+    async send(
+      @Param('conversationId') conversationId: string,
+      @Body() dto: CreateMessageDto,
+      @Req() req: any,
+    ) {
+        return this.service.sendMessage(conversationId, req.user.userId, dto.text);
     }
 }

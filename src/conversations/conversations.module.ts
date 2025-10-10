@@ -1,13 +1,20 @@
+// src/conversations/conversations.module.ts
 import { Module } from '@nestjs/common';
-import { ConversationsService } from './conversations.service';
 import { ConversationsController } from './conversations.controller';
-import { ChatGateway } from '../ws/chat.gateway';
-import { AuthModule } from '../auth/auth.module'; // чтобы JwtService был доступен
+import { ConversationsService } from './conversations.service';
+import { ChatGateway } from './chat.gateway';
+import { PrismaService } from '../prisma/prisma.service';
+
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { AuthModule } from '../auth/auth.module'; // <- должен экспортировать JwtModule/JwtService
 
 @Module({
-    imports: [AuthModule],            // JwtService приходит из AuthModule (он экспортирует JwtModule)
+    imports: [
+        AuthModule,                   // <- здесь появится JwtService
+        EventEmitterModule.forRoot(), // <- для @OnEvent
+    ],
     controllers: [ConversationsController],
-    providers: [ConversationsService, ChatGateway],
-    exports: [ConversationsService],  // (на будущее) если где-то ещё понадобится
+    providers: [ConversationsService, ChatGateway, PrismaService],
+    exports: [ConversationsService],
 })
 export class ConversationsModule {}

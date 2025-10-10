@@ -17,26 +17,33 @@ export class AuthService {
         try {
             const hash = await argon2.hash(data.password);
 
-            const user = await this.prisma.user.create({
-                data: {
-                    email: data.email,
-                    passwordHash: hash,
-                    role: data.role as any,
-                    name: data.name,
-                    city: data.city,
-                },
+            // Всё выполняем в одной транзакции, чтобы не было "битых" пользователей
+            const result = await this.prisma.$transaction(async (tx) => {
+                const user = await tx.user.create({
+                    data: {
+                        email: data.email,
+                        passwordHash: hash,
+                        role: data.role as any, // лучше сделать Enum
+                        name: data.name,
+                        city: data.city,
+                    },
+                });
+
+                // Если это исполнитель — создаём профиль Contractor
+                if (data.role === 'CONTRACTOR') {
+                    await tx.contractor.create({
+                        data: {
+                            userId: user.id,
+                            // companyName и about можно не указывать, если в схеме nullable
+                        },
+                    });
+                }
+
+                return user;
             });
 
-            // Если это исполнитель — создаём карточку Contractor (требуется твоей схемой)
-            if (data.role === 'CONTRACTOR') {
-                await this.prisma.contractor.create({
-                    data: { userId: user.id, companyName: null, about: null },
-                });
-            }
-
-            return this.issueTokens(user.id, user.role);
+            return this.issueTokens(result.id, result.role);
         } catch (e: any) {
-            // Prisma уникальность email
             if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
                 throw new ConflictException('Email already in use');
             }
@@ -44,6 +51,7 @@ export class AuthService {
             throw new InternalServerErrorException('REGISTER_FAILED');
         }
     }
+
 
     async login(email: string, password: string) {
         const user = await this.prisma.user.findUnique({ where: { email } });

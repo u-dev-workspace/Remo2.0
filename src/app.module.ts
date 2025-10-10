@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -11,6 +11,9 @@ import { CategoriesModule } from './categories/categories.module';
 import { ProjectsModule } from './projects/projects.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { ContractorProfileModule } from './contractor-profile/contractor-profile.module';
+import { ContractorAttachmentsModule } from './contractor-attachments/contractor-attachments.module';
+
 
 @Module({
     imports: [
@@ -21,7 +24,10 @@ import { UploadsModule } from './uploads/uploads.module';
         CategoriesModule,
         ProjectsModule,
         ConversationsModule,
-        UploadsModule
+        UploadsModule,
+        ContractorProfileModule,
+        ContractorAttachmentsModule,
+        EventEmitterModule.forRoot(),
     ],
     providers: [
         // 👇 глобально подключаем ThrottlerGuard

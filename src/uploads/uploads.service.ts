@@ -3,6 +3,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 
 const ALLOWED = ['image/jpeg','image/png','image/webp','image/heic','image/avif'];
 
@@ -23,6 +24,32 @@ export class UploadsService {
                 secretAccessKey: process.env.S3_SECRET_KEY!,
             },
         });
+    }
+
+    async uploadStream(file: any, folder: string) {
+        try {
+            console.log('📤 Uploading stream to MinIO:', file.filename);
+            const key = `${folder}/${Date.now()}-${randomUUID()}-${file.filename}`;
+
+            await this.s3.send(
+              new PutObjectCommand({
+                  Bucket: this.bucket,
+                  Key: key,
+                  Body: file.file, // Fastify-multipart отдаёт поток
+                  ContentType: file.mimetype,
+                  ACL: 'public-read', // если бакет публичный
+              }),
+            );
+
+            const url = this.publicUrl
+              ? `${this.publicUrl}/${key}`
+              : `${this.bucket}/${key}`;
+
+            return { objectKey: key, url };
+        } catch (err) {
+            console.error('❌ MinIO upload error:', err);
+            throw err;
+        }
     }
 
     async createPresignedPut(projectId: string, mime: string, sizeBytes: number, ext?: string) {

@@ -1,6 +1,6 @@
 // prisma/schema.prisma
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -64,8 +64,9 @@ model Contractor {
   companyName String?
   about       String?
 
-  categories    Category[]     @relation("ContractorCategories")
-  conversations Conversation[] // удобная обратная связь (через relation ниже)
+  categories           Category[]             @relation("ContractorCategories")
+  conversations        Conversation[] // удобная обратная связь (через relation ниже)
+  ContractorAttachment ContractorAttachment[]
 }
 
 model Category {
@@ -86,14 +87,13 @@ model Project {
   clientId String
   client   User   @relation("UserProjects", fields: [clientId], references: [id])
 
-  title       String
-  description String
-  placeType   String
-  areaM2      Int?
-  budgetMin   Int?
-  budgetMax   Int?
-  city        String?
-
+  title         String
+  description   String
+  placeType     String
+  areaM2        Int?
+  budgetMin     Int?
+  budgetMax     Int?
+  city          String?
   categories    Category[]     @relation("ProjectCategories")
   attachments   Attachment[]
   conversations Conversation[]
@@ -103,9 +103,9 @@ model Project {
 }
 
 model Attachment {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id])
 
   url       String
   mime      String
@@ -114,17 +114,37 @@ model Attachment {
   sizeBytes Int?
 
   caption   String?
-  sortOrder Int      @default(0)
-  isCover   Boolean  @default(false)
-  objectKey String   @unique
-  checksum  String?  @unique
+  sortOrder Int     @default(0)
+  isCover   Boolean @default(false)
+  objectKey String  @unique
+  checksum  String? @unique
 
-  createdAt DateTime @default(now())   // ← добавили
+  createdAt DateTime @default(now()) // ← добавили
 
   @@index([projectId, sortOrder])
 }
 
+model ContractorAttachment {
+  id           String     @id @default(cuid())
+  contractorId String
+  contractor   Contractor @relation(fields: [contractorId], references: [id])
 
+  url       String
+  mime      String
+  width     Int?
+  height    Int?
+  sizeBytes Int?
+
+  caption   String?
+  sortOrder Int     @default(0)
+  isCover   Boolean @default(false)
+  objectKey String  @unique
+  checksum  String? @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([contractorId, sortOrder])
+}
 
 model Conversation {
   id String @id @default(cuid())

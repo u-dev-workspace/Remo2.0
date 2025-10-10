@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8" />
+<h3>Socket test</h3>
+<div id="log" style="font-family:monospace"></div>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbWdpY2VhNDYwMDAxd3VvbzBua2RpbDhzIiwicm9sZSI6IkNPTlRSQUNUT1IiLCJpYXQiOjE3NTk5ODgzMjMsImV4cCI6MTc1OTk4OTIyM30.dN-VzlGh6ekHdEPpUfOQ2_KR0Cbj8YHSiws9WgzdVAw';
+  const CONVERSATION_ID = 'cmgidzfv80001wu5wlbbq1919';
+
+  const out = (m,...a)=>document.getElementById('log').innerText += m+' '+a.map(x=>JSON.stringify(x)).join(' ')+'\n';
+
+  const socket = io('http://localhost:8080/ws', { auth: { token: TOKEN } });
+  socket.on('connect', () => { out('connect', socket.id); socket.emit('conversation:join', { conversationId: CONVERSATION_ID }); });
+  socket.on('conversation:joined', (p) => out('joined', p));
+  socket.on('message:new', (m) => out('message:new', m));
+  socket.onAny((ev, ...args) => out('[onAny]', ev, ...args));  // лог ВСЕХ событий
+  socket.on('connect_error', (e) => out('connect_error', e.message));
+  socket.on('error', (e) => out('socket error', e));
+</script>
