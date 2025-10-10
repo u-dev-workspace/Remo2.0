@@ -16,7 +16,7 @@ services:
       # Укажи внешний DSN или подключи отдельный сервис БД
       DATABASE_URL: ${DATABASE_URL}
       # по желанию: CORS для фронта
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3005}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:3005}
     ports:
       - "3005:8080"
     volumes:
