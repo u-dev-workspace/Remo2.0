@@ -1,43 +1,37 @@
-version: "3.9"
-
 services:
-
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: remo_api
+      target: runtime
+    image: remo-api:latest
+    container_name: remo-api
     restart: unless-stopped
     env_file:
       - .env
     environment:
-      PORT: ${PORT:-8080}
-    depends_on:
-      db:
-        condition: service_healthy
+      # API слушает 8080 внутри, наружу — 3005
+      PORT: 3005:8080
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3005}
+      # Укажи внешний DSN или подключи отдельный сервис БД
+      DATABASE_URL: ${DATABASE_URL}
+      # по желанию: CORS для фронта
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3005}
     ports:
       - "3005:8080"
     volumes:
-      - uploads_data:/app/uploads   # персистентные файлы
+      - uploads_data:/app/uploads
+    # убедимся, что папка доступна пользователю node внутри контейнера
+    command: >
+      sh -c "mkdir -p /app/uploads &&
+             chown -R node:node /app/uploads &&
+             npx prisma migrate deploy &&
+             node dist/main.js"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/docs >/dev/null || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
 
-  adminer:
-    image: adminer:4
-    container_name: remo_adminer
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "8081:8080"    # Adminer -> http://localhost:8081
-    environment:
-      # подтяни по желанию
-      ADMINER_DEFAULT_SERVER: db
-
 volumes:
-  mysql_data:
   uploads_data:
