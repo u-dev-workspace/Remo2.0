@@ -46,4 +46,4 @@ USER node
 EXPOSE 8080
 
 # Запуск: миграции и старт
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node node dist/src/main.js"]
