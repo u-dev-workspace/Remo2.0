@@ -66,7 +66,7 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document, { customSiteTitle: 'Remo API Docs' });
 
   // 🧩 7. Стартуем сервер
-  const port = config.get('PORT') || 8080;
+  const port = 8080;
   await app.listen(port, '0.0.0.0');
   console.log(`🚀 HTTP listening on http://127.0.0.1:${port}`);
 
