@@ -15,8 +15,8 @@ import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiOkResponse } from '@ne
 import { CreateAttachmentDto } from './dto/create-attachment.dto';
 import { AttachmentLinkDto } from './dto/attachment-link.dto';
 
-@ApiTags('Attachments')
-@ApiBearerAuth()
+@ApiTags('Contractor Attachments') // ← появится группа в Swagger
+@ApiBearerAuth('bearerAuth')
 @UseGuards(JwtGuard)
 @Controller('attachments')
 export class ContractorAttachmentsController {

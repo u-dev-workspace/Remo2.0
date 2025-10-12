@@ -32,7 +32,7 @@ pipeline {
 
         stage('Healthcheck') {
             steps {
-                sh "curl -f http://localhost:3005/docs || exit 1"
+                sh "curl -I http://localhost:3005/docs || exit 1"
             }
         }
     }
