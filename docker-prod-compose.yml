@@ -2,11 +2,9 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: runtime
     image: remo-api:latest
     container_name: remo-api
-    restart: unless-stopped
+    restart: no
     env_file:
       - .env
     environment:
@@ -25,8 +23,9 @@ services:
     command: >
       sh -c "mkdir -p /app/uploads &&
              chown -R node:node /app/uploads &&
+             npx prisma generate &&
              npx prisma migrate deploy &&
-             node dist/main.js"
+             node dist/src/main.js"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/docs >/dev/null || exit 1"]
       interval: 15s

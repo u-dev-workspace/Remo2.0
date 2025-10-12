@@ -1,22 +1,66 @@
-# Этап сборки
-FROM node:20 AS builder
+# ==============================
+# === BASE IMAGE
+# ==============================
+FROM node:20-alpine AS base
 WORKDIR /app
+ENV NODE_ENV=production
 
-COPY package*.json ./
-RUN npm ci
+# Устанавливаем Yarn через Corepack (Yarn 4)
+RUN corepack enable && corepack prepare yarn@4.10.3 --activate
 
-COPY . .
-RUN npm run build
+# ==============================
+# === BUILD STAGE
+# ==============================
+FROM base AS build
 
-# Этап продакшн-образа
-FROM node:20-slim AS production
+# Копируем только нужные файлы для зависимостей
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn ./.yarn
+
+# Устанавливаем зависимости (включая dev)
+RUN yarn install --mode=skip-build
+
+
+# Копируем исходники и Prisma
+COPY prisma ./prisma
+COPY tsconfig*.json nest-cli.json ./
+COPY src ./src
+
+# Генерируем Prisma Client и билдим проект
+RUN yarn prisma generate && yarn build
+
+# ==============================
+# === RUNTIME (продакшн)
+# ==============================
+FROM node:20-alpine AS runtime
 WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=8080
 
-COPY package*.json ./
-RUN npm ci --omit=dev
+# Устанавливаем зависимости для Prisma (OpenSSL)
+RUN apk add --no-cache openssl
 
-# Копируем собранный билд из builder
-COPY --from=builder /app/dist ./dist
+# Копируем только нужные файлы
+COPY package.json yarn.lock ./
+COPY .yarn ./.yarn
+COPY .yarnrc.yml ./
 
-# Запускаем
-CMD ["node", "dist/main.js"]
+# Устанавливаем только продакшн-зависимости
+RUN yarn install --immutable --mode=skip-build
+
+# Копируем Prisma и сборку
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/prisma ./prisma
+
+# (если нужно) копируем .env
+COPY .env .env
+
+# Создаём директорию для загрузок
+RUN mkdir -p /app/uploads && chown -R node:node /app
+USER node
+
+EXPOSE 8080
+
+# Миграции и запуск приложения
+CMD ["sh", "-c", "yarn prisma generate && yarn prisma migrate deploy && node dist/src/main.js"]
+
