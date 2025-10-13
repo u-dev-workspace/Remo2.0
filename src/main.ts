@@ -40,13 +40,14 @@ async function bootstrap() {
   });
 
   // 🧩 4. CORS
-  app.enableCors({
-    origin: true, // отражает Origin-ы
+  await (fastify as any).register(cors, {
+    // Отражаем присланный Origin (поддерживает credentials)
+    origin: (origin, cb) => cb(null, true),
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    // по желанию: maxAge: 86400, exposeHeaders: ['Content-Disposition']
   });
-
   // 🧩 5. WebSockets + фильтры
   app.useWebSocketAdapter(new IoAdapter(app));
   app.useGlobalFilters(new AllExceptionsFilter());
