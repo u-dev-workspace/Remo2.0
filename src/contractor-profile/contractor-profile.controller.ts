@@ -6,7 +6,7 @@ import { UpdateContractorDto } from './dto/update-contractor.dto';
 @ApiTags('Contractor Profile') // ← появится группа в Swagger
 @ApiBearerAuth('bearerAuth')
 @Controller('api/v1/contractor-profile')
-@UseGuards(JwtGuard) // можно убрать, если нет защиты
+@UseGuards(JwtGuard)
 export class ContractorProfileController {
   constructor(private readonly contractorProfileService: ContractorProfileService) {}
 

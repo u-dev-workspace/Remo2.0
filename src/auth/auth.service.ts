@@ -1,4 +1,10 @@
-import { Injectable, ConflictException, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import {
+    Injectable,
+    ConflictException,
+    UnauthorizedException,
+    InternalServerErrorException,
+    NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as argon2 from 'argon2';
 import { JwtService } from '@nestjs/jwt';
@@ -61,6 +67,23 @@ export class AuthService {
         return this.issueTokens(user.id, user.role);
     }
 
+    async getPublicById(id: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id },
+            include: {
+                contractor: true,
+                projects: true,           // при желании сузить поля — поменяй на select
+                Conversation: true,
+                Subscription: true,
+            },
+        });
+        if (!user) throw new NotFoundException('User not found');
+
+        // выкидываем пароль
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { passwordHash, ...safe } = user as any;
+        return safe;
+    }
     private async issueTokens(userId: string, role: string) {
         const access = await this.jwt.signAsync({ sub: userId, role }, { expiresIn: '15m' });
         const refresh = await this.jwt.signAsync({ sub: userId, role, typ: 'refresh' }, { expiresIn: '30d' });

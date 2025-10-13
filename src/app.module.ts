@@ -8,7 +8,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
-// import { ProjectsModule } from './projects/projects.module';
+import { ProjectsModule } from './projects/projects.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { ContractorProfileModule } from './contractor-profile/contractor-profile.module';
@@ -22,7 +22,7 @@ import { ContractorAttachmentsModule } from './contractor-attachments/contractor
         PrismaModule,
         AuthModule,
         CategoriesModule,
-        // ProjectsModule,
+        ProjectsModule,
         ConversationsModule,
         UploadsModule,
         ContractorProfileModule,

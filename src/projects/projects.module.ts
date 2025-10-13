@@ -1,13 +1,11 @@
-// src/projects/projects.module.ts
 import { Module } from '@nestjs/common';
-// import { ProjectsService } from './projects.service';
-// import { ProjectsController } from './projects.controller';
-import { UploadsModule } from '../uploads/uploads.module';
+import { ProjectsService } from './projects.service';
+import { ProjectsController } from './projects.controller';
+import { PrismaService } from '../prisma/prisma.service';
 
-// @Module({
-//     imports: [UploadsModule],
-//     controllers: [ProjectsController],
-//     providers: [ProjectsService],
-//     exports: [ProjectsService],
-// })
-// export class ProjectsModule {}
+@Module({
+  controllers: [ProjectsController],
+  providers: [ProjectsService, PrismaService],
+  exports: [ProjectsService],
+})
+export class ProjectsModule {}
