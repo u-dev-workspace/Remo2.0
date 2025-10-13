@@ -3,7 +3,9 @@ import { ProjectsService } from './projects.service';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { CreateProjectDto } from './dto';
 import { ProjectOwnerGuard } from '../common/guards/project-owner.guard';
-
+import { ApiBearerAuth } from '@nestjs/swagger';
+@ApiBearerAuth('bearerAuth')
+@UseGuards(JwtGuard)
 @Controller('api/v1/projects')
 export class ProjectsController {
     constructor(private service: ProjectsService) {}

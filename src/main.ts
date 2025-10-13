@@ -40,11 +40,8 @@ async function bootstrap() {
   });
 
   // 🧩 4. CORS
-  const origins = (config.get<string>('CORS_ORIGINS') || '').split(',').filter(Boolean);
-  await (fastify as any).register(cors, {
-    origin: origins.length
-      ? (origin, cb) => cb(null, !!origin && origins.includes(origin))
-      : true,
+  app.enableCors({
+    origin: true, // отражает Origin-ы
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
