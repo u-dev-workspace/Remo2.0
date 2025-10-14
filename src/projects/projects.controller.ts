@@ -5,7 +5,7 @@ import {
   Get,
   Param,
   Patch,
-  Post,
+  Post, Query,
   Req, UseGuards,
 } from '@nestjs/common';
 import {
@@ -15,7 +15,7 @@ import {
   ApiOkResponse,
   ApiBearerAuth,
   ApiConsumes,
-  ApiBody,
+  ApiBody, ApiQuery,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -96,5 +96,34 @@ export class ProjectsController {
   @Delete(':projectId/attachments/:attachmentId')
   deleteAttachment(@Param('projectId') projectId: string, @Param('attachmentId') attachmentId: string) {
     return this.service.deleteAttachment(projectId, attachmentId);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Список проектов (общий каталог) или проекты текущего клиента, если указать mine=true' })
+  @ApiQuery({ name: 'mine', required: false, description: 'Если true — вернуть только проекты текущего пользователя' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'city', required: false })
+  @ApiQuery({ name: 'categoryId', required: false })
+  @ApiQuery({ name: 'take', required: false, description: 'Кол-во (по умолчанию 20)' })
+  @ApiQuery({ name: 'cursor', required: false, description: 'Cursor (project.id)' })
+  async list(
+    @Req() req: any,
+    @Query('mine') mine?: string,
+    @Query('status') status?: string,
+    @Query('city') city?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('take') take = '20',
+    @Query('cursor') cursor?: string,
+  ) {
+    const userId = req.user?.id;
+    return this.service.list({
+      mine: mine === 'true',
+      userId,
+      status,
+      city,
+      categoryId,
+      take: Number(take) || 20,
+      cursor,
+    });
   }
 }

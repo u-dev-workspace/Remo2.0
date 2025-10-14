@@ -13,6 +13,7 @@ import { ConversationsModule } from './conversations/conversations.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { ContractorProfileModule } from './contractor-profile/contractor-profile.module';
 import { ContractorAttachmentsModule } from './contractor-attachments/contractor-attachments.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
 
 
 @Module({
@@ -27,6 +28,7 @@ import { ContractorAttachmentsModule } from './contractor-attachments/contractor
         UploadsModule,
         ContractorProfileModule,
         ContractorAttachmentsModule,
+        RecommendationsModule,
         EventEmitterModule.forRoot(),
     ],
     providers: [

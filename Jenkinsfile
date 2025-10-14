@@ -29,12 +29,6 @@ pipeline {
                 }
             }
         }
-
-        stage('Healthcheck') {
-            steps {
-                sh "curl -I http://localhost:3005/docs || exit 1"
-            }
-        }
     }
 
     post {

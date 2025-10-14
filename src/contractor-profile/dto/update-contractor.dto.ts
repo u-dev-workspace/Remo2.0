@@ -1,14 +1,28 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsArray, ArrayUnique } from 'class-validator';
 
 export class UpdateContractorDto {
-  @ApiPropertyOptional({ example: 'BuildMaster LLC', description: 'Название компании' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   companyName?: string;
 
-  @ApiPropertyOptional({ example: 'Мы занимаемся ремонтом квартир и домов', description: 'Описание компании' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   about?: string;
+
+  // Если передано — ПОЛНАЯ замена списка категорий
+  @ApiPropertyOptional({ type: [String], description: 'Полная замена категорий исполнителя' })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  categoryIds?: string[];
+}
+
+export class AddCategoriesDto {
+  @ApiPropertyOptional({ type: [String], description: 'Категории для добавления' })
+  @IsArray()
+  @ArrayUnique()
+  categoryIds: string[];
 }

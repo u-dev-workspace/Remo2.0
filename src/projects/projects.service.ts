@@ -10,18 +10,42 @@ import { promisify } from 'util';
 
 const pump = promisify(pipeline);
 
+type ProjectsListParams = {
+  mine?: boolean;
+  userId?: string;
+  status?: string;
+  city?: string;
+  categoryId?: string;
+  take?: number;
+  cursor?: string;
+};
 @Injectable()
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async assertAllCategoriesExist(ids: string[]) {
+    if (!ids?.length) return;
+    const found = await this.prisma.category.count({ where: { id: { in: ids } } });
+    if (found !== ids.length) {
+      throw new BadRequestException('Some categoryIds do not exist');
+    }
+  }
+
   async create(clientId: string, dto: CreateProjectDto) {
+    // проверим категории, если передали
+    await this.assertAllCategoriesExist(dto.categoryIds ?? []);
+
     return this.prisma.project.create({
       data: {
         clientId,
         title: dto.title,
         description: dto.description,
         city: dto.city ?? null,
+        ...(dto.categoryIds?.length
+          ? { categories: { connect: dto.categoryIds.map((id) => ({ id })) } }
+          : {}),
       },
+      include: { categories: true },
     });
   }
 
@@ -31,6 +55,7 @@ export class ProjectsService {
       include: {
         attachments: { orderBy: { sortOrder: 'asc' } },
         coverAttachment: true,
+        categories: true,
       },
     });
     if (!project) throw new NotFoundException('Project not found');
@@ -38,8 +63,21 @@ export class ProjectsService {
   }
 
   async update(id: string, dto: UpdateProjectDto) {
-    // Проверка существования (даст нормальную 404 вместо 200/0 rows)
     await this.ensureProject(id);
+
+    // coverAttachmentId как раньше
+    const coverAttachmentId =
+      Object.prototype.hasOwnProperty.call(dto, 'coverAttachmentId')
+        ? dto.coverAttachmentId ?? null
+        : undefined;
+
+    // если поле categoryIds присутствует — полная замена
+    let categoriesUpdate: { set: { id: string }[] } | undefined = undefined;
+    if (Object.prototype.hasOwnProperty.call(dto, 'categoryIds')) {
+      const ids = dto.categoryIds ?? [];
+      await this.assertAllCategoriesExist(ids);
+      categoriesUpdate = { set: ids.map((cid) => ({ id: cid })) };
+    }
 
     return this.prisma.project.update({
       where: { id },
@@ -47,8 +85,10 @@ export class ProjectsService {
         title: dto.title,
         description: dto.description,
         city: dto.city,
-        coverAttachmentId: dto.coverAttachmentId ?? undefined,
+        coverAttachmentId,
+        ...(categoriesUpdate ? { categories: categoriesUpdate } : {}),
       },
+      include: { categories: true },
     });
   }
 
@@ -160,4 +200,36 @@ export class ProjectsService {
     if (!exists) throw new NotFoundException('Project not found');
     return exists;
   }
+
+  async list(params: ProjectsListParams) {
+    const where: any = {};
+
+    if (params.mine && params.userId) {
+      where.clientId = params.userId;
+    }
+    if (params.status) where.status = params.status as any;
+    if (params.city) where.city = params.city;
+    if (params.categoryId) where.categories = { some: { id: params.categoryId } };
+
+    const take = Math.min(Math.max(params.take || 20, 1), 100);
+    const query: any = {
+      where,
+      orderBy: { createdAt: 'desc' },
+      take,
+      include: {
+        categories: true,
+        coverAttachment: true,
+        client: { select: { id: true, name: true, city: true } },
+      },
+    };
+    if (params.cursor) {
+      query.cursor = { id: params.cursor };
+      query.skip = 1;
+    }
+
+    const items = await this.prisma.project.findMany(query);
+    const nextCursor = items.length === take ? items[items.length - 1].id : null;
+    return { items, nextCursor };
+  }
 }
+
