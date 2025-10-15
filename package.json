@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "nest start --watch",
+    "start:dev": "tsc -p tsconfig.build.json && node dist/src/main",
     "prisma:dev": "prisma migrate dev",
     "seed": "ts-node prisma/seed.ts",
     "db:seed": "prisma db seed",

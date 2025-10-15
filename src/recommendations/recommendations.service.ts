@@ -1,39 +1,72 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma, ProjectStatus } from '@prisma/client';
 
-type ListParams = { status?: string; city?: string; take?: number; cursor?: string };
+type ListParams = {
+  status?: string;
+  city?: string;
+  take?: number;
+  cursor?: string;
+  excludeTalked?: boolean;
+  debug?: boolean;
+};
 
 @Injectable()
 export class RecommendationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // 1) Проекты для исполнителя (по его категориям)
+
   async projectsForContractor(userId: string, params: ListParams) {
+    if (!userId) throw new BadRequestException('userId is required');
+
     const contractor = await this.prisma.contractor.findUnique({
       where: { userId },
-      include: { categories: { select: { id: true } } },
+      include: { categories: { select: { id: true, name: true } } },
     });
     if (!contractor) throw new NotFoundException('Contractor profile not found');
 
     const categoryIds = contractor.categories.map(c => c.id);
-    if (categoryIds.length === 0) return { items: [], nextCursor: null };
+    if (!categoryIds.length) {
+      return { items: [], nextCursor: null, ...(params.debug ? { debug: { reason: 'no_contractor_categories' } } : {}) };
+    }
 
-    const where: any = {
+    // нормализуем статус
+    let statusFilter: ProjectStatus | undefined;
+    if (params.status) {
+      const u = params.status.toUpperCase();
+      if ((Object.values(ProjectStatus) as string[]).includes(u)) {
+        statusFilter = u as ProjectStatus;
+      }
+    }
+
+    // --- where (БЕЗ mode для MySQL) ---
+    const where: Prisma.ProjectWhereInput = {
       categories: { some: { id: { in: categoryIds } } },
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(params.city
+        ? {
+          // равенство по городу (MySQL обычно case-insensitive из-за коллации *_ci)
+          OR: [{ city: { equals: params.city } }, { city: null }],
+          // если хочешь частичное совпадение:
+          // OR: [{ city: { contains: params.city } }, { city: null }],
+        }
+        : {}),
     };
-    if (params.status) where.status = params.status as any;
-    if (params.city) where.city = params.city;
 
-    // исключим проекты, где уже есть диалог с этим исполнителем
-    const conversations = await this.prisma.conversation.findMany({
-      where: { contractorId: contractor.id },
-      select: { projectId: true },
-    });
-    const already = new Set(conversations.map(c => c.projectId));
-    if (already.size) where.id = { notIn: Array.from(already) };
+    // исключить проекты, где уже был диалог (если включено)
+    let excludedProjectIds: string[] = [];
+    if (params.excludeTalked !== false) {
+      const conversations = await this.prisma.conversation.findMany({
+        where: { contractorId: contractor.id },
+        select: { projectId: true },
+      });
+      excludedProjectIds = conversations.map(c => c.projectId);
+      if (excludedProjectIds.length) (where as any).id = { notIn: excludedProjectIds };
+    }
 
     const take = Math.min(Math.max(params.take || 20, 1), 100);
-    const query: any = {
+
+    const query: Prisma.ProjectFindManyArgs = {
       where,
       orderBy: { createdAt: 'desc' },
       take,
@@ -41,18 +74,61 @@ export class RecommendationsService {
         categories: true,
         coverAttachment: true,
         client: { select: { id: true, name: true, city: true } },
+        attachments: {
+          take: 3, // ← возвращает только первые 3 вложения
+        },
       },
     };
+
+    // валидируем cursor
     if (params.cursor) {
-      query.cursor = { id: params.cursor };
-      query.skip = 1;
+      const exists = await this.prisma.project.findFirst({
+        where: { ...where, id: params.cursor },
+        select: { id: true },
+      });
+      if (exists) {
+        query.cursor = { id: params.cursor };
+        (query as any).skip = 1;
+      }
+    }
+
+    // --- debug counters (типизируем как number | undefined) ---
+    let totalMatch: number | undefined;
+    let totalAfterExclusion: number | undefined;
+    if (params.debug) {
+      totalMatch = await this.prisma.project.count({
+        where: {
+          categories: { some: { id: { in: categoryIds } } },
+          ...(statusFilter ? { status: statusFilter } : {}),
+          ...(params.city ? { OR: [{ city: { equals: params.city } }, { city: null }] } : {}),
+        },
+      });
+      if (excludedProjectIds.length) {
+        totalAfterExclusion = await this.prisma.project.count({ where });
+      }
     }
 
     const items = await this.prisma.project.findMany(query);
     const nextCursor = items.length === take ? items[items.length - 1].id : null;
-    return { items, nextCursor };
-  }
 
+    return {
+      items,
+      nextCursor,
+      ...(params.debug
+        ? {
+          debug: {
+            contractorId: contractor.id,
+            contractorCategoryIds: categoryIds,
+            contractorCategoryNames: contractor.categories.map(c => c.name),
+            where,
+            totalMatch,
+            excludedProjectIds,
+            totalAfterExclusion,
+          },
+        }
+        : {}),
+    };
+  }
   // 2) Исполнители для проекта (по категориям проекта)
   async contractorsForProject(projectId: string, opts: { city?: string; take?: number }) {
     const project = await this.prisma.project.findUnique({
