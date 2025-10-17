@@ -99,12 +99,7 @@ export class ProjectsService {
     return { ok: true };
   }
 
-  // ---------- Multipart upload ----------
-  /**
-   * Принимает multipart через Fastify: const data = await req.file()
-   * Сохраняет файл в uploads/projects/<userId>/<generatedName>
-   * Создаёт Attachment с url вида /uploads/projects/<userId>/<file>
-   */
+  // ---------- upload epta vse rabotaet ----------
   async uploadAttachment(projectId: string, userId: string, req: any) {
     await this.ensureProject(projectId);
 
@@ -231,5 +226,6 @@ export class ProjectsService {
     const nextCursor = items.length === take ? items[items.length - 1].id : null;
     return { items, nextCursor };
   }
+
 }
 

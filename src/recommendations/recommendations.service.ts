@@ -73,7 +73,7 @@ export class RecommendationsService {
       include: {
         categories: true,
         coverAttachment: true,
-        client: { select: { id: true, name: true, city: true } },
+        client: { select: { id: true, name: true, city: true, avatarUrl:true } },
         attachments: {
           take: 3, // ← возвращает только первые 3 вложения
         },
