@@ -4,12 +4,12 @@
 <div id="log" style="font-family:monospace"></div>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
-  const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbWdra3VlbWswMDAxZTlmMzB2aGh3ejNrIiwicm9sZSI6IkNPTlRSQUNUT1IiLCJpYXQiOjE3NjA3MjQ3MDIsImV4cCI6MTc2MDcyNTYwMn0.TmwAczpRU5eB5QIr4Kf-oxtW_PdAIpcvDP8gHowuAec';
+  const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbWdra3VlbWswMDAxZTlmMzB2aGh3ejNrIiwicm9sZSI6IkNPTlRSQUNUT1IiLCJpYXQiOjE3NjA4ODkzODAsImV4cCI6MTc2MDg5MDI4MH0.68meg2Pl7pjBPAXwnoim4ZaYinryj4e4phhZ_WjBcWI';
   const CONVERSATION_ID = 'cmgv5vl5w0019i5byuwkwjtcl';
 
   const out = (m,...a)=>document.getElementById('log').innerText += m+' '+a.map(x=>JSON.stringify(x)).join(' ')+'\n';
 
-  const socket = io('http://185.47.167.143/ws', { auth: { token: TOKEN } });
+  const socket = io('https://remo.centi.space/ws', { auth: { token: TOKEN } });
   socket.on('connect', () => { out('connect', socket.id); socket.emit('conversation:join', { conversationId: CONVERSATION_ID }); });
   socket.on('conversation:joined', (p) => out('joined', p));
   socket.on('message:new', (m) => out('message:new', m));

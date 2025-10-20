@@ -1,9 +1,11 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Conversation, Message } from '@prisma/client';
 
 @Injectable()
 export class ConversationsService {
+
     constructor(
       private readonly prisma: PrismaService,
       private readonly events: EventEmitter2,
@@ -119,4 +121,52 @@ export class ConversationsService {
 
         return message;
     }
+
+    async startConversation(
+      projectId: string,
+      contractorId: string,
+      clientUserId: string,
+      text?: string,
+    ): Promise<{ conversation: Conversation; firstMessage: Message | null }> {
+        // 1) проект принадлежит клиенту
+        const project = await this.prisma.project.findUnique({
+            where: { id: projectId },
+            select: { id: true, clientId: true },
+        });
+        if (!project) throw new NotFoundException('Project not found');
+        if (project.clientId !== clientUserId) throw new ForbiddenException('You are not the owner of this project');
+
+        // 2) существует ли подрядчик
+        const contractor = await this.prisma.contractor.findUnique({
+            where: { id: contractorId },
+            select: { id: true },
+        });
+        if (!contractor) throw new NotFoundException('Contractor not found');
+
+        // 3) upsert беседы по уникальному триплету
+        const conversation = await this.prisma.conversation.upsert({
+            where: {
+                projectId_clientId_contractorId: { projectId, clientId: clientUserId, contractorId },
+            },
+            update: {},
+            create: { projectId, clientId: clientUserId, contractorId },
+        });
+
+        this.events.emit('conversation.created', {
+            conversationId: conversation.id, projectId, clientId: clientUserId, contractorId,
+        });
+
+        // 4) опциональное первое сообщение
+        let message: Message | null = null;
+        if (text && text.trim().length) {
+
+            message = await this.prisma.message.create({
+                data: { conversationId: conversation.id, senderId: clientUserId, text: text.trim() },
+            });
+            this.events.emit('conversation.message.created', { conversationId: conversation.id, message });
+        }
+
+        return { conversation, firstMessage: message };
+    }
+
 }

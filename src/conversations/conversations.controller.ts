@@ -6,6 +6,7 @@ import { ConversationsService } from './conversations.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ListMessagesQueryDto } from './dto/list-messages.query.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { StartConversationDto } from './dto/StartConversationDto';
 @ApiTags('Conversation')
 @ApiBearerAuth('bearerAuth')
 @UseGuards(JwtGuard)
@@ -36,5 +37,12 @@ export class ConversationsController {
       @Req() req: any,
     ) {
         return this.service.sendMessage(conversationId, req.user?.id, dto.text);
+    }
+
+    @Post('start')
+    @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+    async start(@Body() dto: StartConversationDto, @Req() req: any) {
+        const { projectId, contractorId, text } = dto;
+        return this.service.startConversation(projectId, contractorId, req.user?.id, text);
     }
 }
