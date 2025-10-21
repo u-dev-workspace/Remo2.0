@@ -1,111 +1,48 @@
-// // prisma/seed.ts
-// import { PrismaClient, ProjectStatus, UserRole } from '@prisma/client';
-// import * as argon2 from 'argon2';
-//
-// const prisma = new PrismaClient();
-//
-// async function main() {
-//     console.log('Seeding…');
-//
-//     // генерим хэши через argon2id
-//     const clientPassHash = await argon2.hash('client123', {
-//         type: argon2.argon2id,
-//         memoryCost: 2 ** 16, // 64 MiB
-//         timeCost: 3,
-//         parallelism: 1,
-//     });
-//     const contractorPassHash = await argon2.hash('contractor123', {
-//         type: argon2.argon2id,
-//         memoryCost: 2 ** 16,
-//         timeCost: 3,
-//         parallelism: 1,
-//     });
-//
-//     // ... категории upsert как раньше
-//
-//     const client = await prisma.user.upsert({
-//         where: { email: 'client@example.com' },
-//         update: {
-//             role: UserRole.CLIENT,
-//             passwordHash: clientPassHash,
-//             name: 'Client User',
-//             city: 'Алматы',
-//         },
-//         create: {
-//             email: 'client@example.com',
-//             role: UserRole.CLIENT,
-//             passwordHash: clientPassHash,
-//             name: 'Client User',
-//             city: 'Алматы',
-//         },
-//     });
-//
-//     const contractorUser = await prisma.user.upsert({
-//         where: { email: 'contractor@example.com' },
-//         update: {
-//             role: UserRole.CONTRACTOR,
-//             passwordHash: contractorPassHash,
-//             name: 'Contractor User',
-//             city: 'Алматы',
-//         },
-//         create: {
-//             email: 'contractor@example.com',
-//             role: UserRole.CONTRACTOR,
-//             passwordHash: contractorPassHash,
-//             name: 'Contractor User',
-//             city: 'Алматы',
-//         },
-//     });
-//
-//     const categories = [
-//         'Электрика',
-//         'Сантехника',
-//         'Плитка',
-//         'Отделка',
-//         'Окна/двери',
-//         'Мебель/сборка',
-//     ];
-//
-//     // 1) Категории параллельно
-//     await Promise.all(
-//       categories.map((name) =>
-//         prisma.category.upsert({
-//             where: { name },
-//             update: {},
-//             create: { name },
-//         }),
-//       ),
-//     );
-//
-//
-//     // 4) Проект клиента — создаём только если ещё нет
-//     const existingProject = await prisma.project.findFirst({
-//         where: { clientId: client.id, title: 'Ремонт кухни' },
-//         select: { id: true },
-//     });
-//
-//     const project =
-//       existingProject ??
-//       (await prisma.project.create({
-//           data: {
-//               clientId: client.id,
-//               title: 'Ремонт кухни',
-//               description: 'Плитка, стены, потолок',
-//               placeType: 'apartment',
-//               city: 'Алматы',
-//               status: 'OPEN',
-//           },
-//           select: { id: true },
-//       }));
-//
-//     console.log('Seed OK ✅');
-//     console.log(`Categories: ${categories.length}`);
-//     console.log('Client:', client.id);
-//     console.log('ContractorUser:', contractorUser.id);
-//     console.log('Contractor:', contractorUser.id);
-//     console.log('Project:', project.id);
-//
-//
-// }
-//
-// main().finally(() => prisma.$disconnect());
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
+
+type CityRow = { slug: string; nameRu: string; nameKk?: string; nameEn?: string };
+
+const cities: CityRow[] = [
+  { slug: 'astana',     nameRu: 'Астана',      nameKk: 'Астана',      nameEn: 'Astana' },
+  { slug: 'almaty',     nameRu: 'Алматы',      nameKk: 'Алматы',      nameEn: 'Almaty' },
+  { slug: 'shymkent',   nameRu: 'Шымкент',     nameKk: 'Шымкент',     nameEn: 'Shymkent' },
+  { slug: 'aktobe',     nameRu: 'Актобе',      nameKk: 'Ақтөбе',      nameEn: 'Aktobe' },
+  { slug: 'atyrau',     nameRu: 'Атырау',      nameKk: 'Атырау',      nameEn: 'Atyrau' },
+  { slug: 'aktau',      nameRu: 'Актау',       nameKk: 'Ақтау',       nameEn: 'Aktau' },
+  { slug: 'oral',       nameRu: 'Орал (Уральск)', nameKk: 'Орал',     nameEn: 'Oral' },
+  { slug: 'kostanay',   nameRu: 'Костанай',    nameKk: 'Қостанай',    nameEn: 'Kostanay' },
+  { slug: 'pavlodar',   nameRu: 'Павлодар',    nameKk: 'Павлодар',    nameEn: 'Pavlodar' },
+  { slug: 'petropavl',  nameRu: 'Петропавловск', nameKk:'Петропавл',  nameEn: 'Petropavl' },
+  { slug: 'kokshetau',  nameRu: 'Кокшетау',    nameKk: 'Көкшетау',    nameEn: 'Kokshetau' },
+  { slug: 'karaganda',  nameRu: 'Караганда',   nameKk: 'Қарағанды',   nameEn: 'Karaganda' },
+  { slug: 'temirtau',   nameRu: 'Темиртау',    nameKk: 'Теміртау',    nameEn: 'Temirtau' },
+  { slug: 'balqash',    nameRu: 'Балхаш',      nameKk: 'Балқаш',      nameEn: 'Balkhash' },
+  { slug: 'ekibastuz',  nameRu: 'Экибастуз',   nameKk: 'Екібастұз',   nameEn: 'Ekibastuz' },
+  { slug: 'kyzylorda',  nameRu: 'Кызылорда',   nameKk: 'Қызылорда',   nameEn: 'Kyzylorda' },
+  { slug: 'taraz',      nameRu: 'Тараз',       nameKk: 'Тараз',       nameEn: 'Taraz' },
+  { slug: 'taldykorgan',nameRu: 'Талдыкорган', nameKk: 'Талдықорған', nameEn: 'Taldykorgan' },
+  { slug: 'konaev',     nameRu: 'Конаев',      nameKk: 'Қонаев',      nameEn: 'Konaev' },
+  { slug: 'turkistan',  nameRu: 'Туркестан',   nameKk: 'Түркістан',   nameEn: 'Turkistan' },
+  { slug: 'semei',      nameRu: 'Семей',       nameKk: 'Семей',       nameEn: 'Semey' },
+  { slug: 'oskemen',    nameRu: 'Усть-Каменогорск', nameKk: 'Өскемен', nameEn: 'Oskemen' },
+  { slug: 'ridder',     nameRu: 'Риддер',      nameKk: 'Риддер',      nameEn: 'Ridder' },
+  { slug: 'zhanaozen',  nameRu: 'Жанаозен',    nameKk: 'Жаңаөзен',    nameEn: 'Zhanaozen' },
+  { slug: 'kynar',      nameRu: 'Кентау',      nameKk: 'Кентау',      nameEn: 'Kentau' },
+  // при желании дополни остальными городами
+];
+
+async function main() {
+  for (const c of cities) {
+    await prisma.city.upsert({
+      where: { slug: c.slug },
+      update: { nameRu: c.nameRu, nameKk: c.nameKk, nameEn: c.nameEn },
+      create: c,
+    });
+  }
+  console.log(`Seeded ${cities.length} cities`);
+}
+
+main()
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

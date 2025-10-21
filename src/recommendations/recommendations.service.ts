@@ -4,13 +4,24 @@ import { Prisma, ProjectStatus } from '@prisma/client';
 
 type ListParams = {
   status?: string;
-  city?: string;
+  cityId?: string;
   take?: number;
   cursor?: string;
   excludeTalked?: boolean;
   debug?: boolean;
 };
+type HomeProjectsParams = {
+  take?: number;
+  cursor?: string;   // Project.id курсор
+  cityId?: string;   // опциональный фильтр по городу
+  status?: 'OPEN' | 'IN_TALK' | 'CLOSED' | 'ARCHIVED'; // при желании
+};
 
+type RecommendContractorsForClientParams = {
+  take?: number;       // сколько вернуть
+  cityId?: string;     // опционально: фильтр исполнителей по городу
+  excludeSelf?: boolean; // исключать контрагента, чей userId == clientUserId (по умолчанию true)
+};
 @Injectable()
 export class RecommendationsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -43,10 +54,10 @@ export class RecommendationsService {
     const where: Prisma.ProjectWhereInput = {
       categories: { some: { id: { in: categoryIds } } },
       ...(statusFilter ? { status: statusFilter } : {}),
-      ...(params.city
+      ...(params.cityId
         ? {
           // равенство по городу (MySQL обычно case-insensitive из-за коллации *_ci)
-          OR: [{ city: { equals: params.city } }, { city: null }],
+          OR: [{ cityId: { equals: params.cityId } }, { cityId: null }],
           // если хочешь частичное совпадение:
           // OR: [{ city: { contains: params.city } }, { city: null }],
         }
@@ -73,7 +84,7 @@ export class RecommendationsService {
       include: {
         categories: true,
         coverAttachment: true,
-        client: { select: { id: true, name: true, city: true, avatarUrl:true } },
+        client: { select: { id: true, name: true, cityId: true, avatarUrl:true } },
         attachments: {
           take: 3, // ← возвращает только первые 3 вложения
         },
@@ -100,7 +111,10 @@ export class RecommendationsService {
         where: {
           categories: { some: { id: { in: categoryIds } } },
           ...(statusFilter ? { status: statusFilter } : {}),
-          ...(params.city ? { OR: [{ city: { equals: params.city } }, { city: null }] } : {}),
+          // или если используешь slug:
+          ...(params.cityId
+            ? { OR: [{ cityId: params.cityId }, { cityId: null }] }
+            : {}),
         },
       });
       if (excludedProjectIds.length) {
@@ -144,10 +158,10 @@ export class RecommendationsService {
     const contractors = await this.prisma.contractor.findMany({
       where: {
         categories: { some: { id: { in: categoryIds } } },
-        ...(opts.city ? { user: { city: opts.city } } : {}),
+        ...(opts.city ? { user: { cityId: opts.city } } : {}),
       },
       include: {
-        user: { select: { id: true, name: true, city: true, avatarUrl: true } },
+        user: { select: { id: true, name: true, cityId: true, avatarUrl: true } },
         categories: { select: { id: true, name: true } },
       },
       take: Math.min(Math.max(opts.take || 20, 1), 100),
@@ -163,5 +177,91 @@ export class RecommendationsService {
       .sort((a, b) => b.matchScore - a.matchScore);
 
     return { items: scored, count: scored.length, projectId };
+  }
+
+  async homeProjects(params: HomeProjectsParams) {
+    const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
+
+    const where: Prisma.ProjectWhereInput = {
+      ...(params.status ? { status: params.status as any } : { status: 'OPEN' as any }),
+      ...(params.cityId ? { cityId: params.cityId } : {}),
+    };
+
+    const items = await this.prisma.project.findMany({
+      where,
+      take,
+      ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        createdAt: true,
+        status: true,
+        cityId: true,
+        city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
+        coverAttachment: { select: { id: true, url: true } },
+        categories: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true, avatarUrl: true, cityId: true } }, // без relation city, чтобы не ловить TS-ошибки
+      },
+    });
+
+    const nextCursor = items.length === take ? items[items.length - 1].id : null;
+
+    return { items, nextCursor };
+  }
+
+  async recommendContractorsForClient(clientUserId: string, params: RecommendContractorsForClientParams = {}) {
+    const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
+    const excludeSelf = params.excludeSelf !== false;
+
+    // 1) Собираем все категории из проектов клиента
+    const projects = await this.prisma.project.findMany({
+      where: { clientId: clientUserId },
+      select: { categories: { select: { id: true } } },
+    });
+
+    const categoryIds = Array.from(
+      new Set(projects.flatMap((p) => p.categories.map((c) => c.id)))
+    );
+
+    if (categoryIds.length === 0) {
+      return { items: [], count: 0, categoryIds: [], note: 'У клиента нет проектов с категориями' };
+    }
+
+    // 2) Ищем исполнителей, у которых есть пересечение по категориям (+ optional фильтр по городу)
+    const contractors = await this.prisma.contractor.findMany({
+      where: {
+        ...(params.cityId ? { cityId: params.cityId } : {}),
+        categories: { some: { id: { in: categoryIds } } },
+        ...(excludeSelf ? { userId: { not: clientUserId } } : {}),
+      },
+      select: {
+        id: true,
+        userId: true,
+        cityId: true,
+        companyName: true,
+        about: true,
+        categories: { select: { id: true } }, // обязательно, чтобы посчитать score
+        user: { select: { id: true, name: true, avatarUrl: true, cityId: true } },
+        city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
+      },
+      // Порядок пока не по score (посчитаем ниже), чтобы не городить сложную пагинацию
+      take: 1000, // верхний лимит на входной пул (если база большая — уменьши)
+    });
+
+    // 3) Считаем matchScore = размер пересечения категорий
+    const set = new Set(categoryIds);
+    const scored = contractors
+      .map((c) => {
+        const inter = c.categories.filter((k) => set.has(k.id)).map((k) => k.id);
+        return { ...c, matchScore: inter.length, matchCategories: inter };
+      })
+      .filter((c) => c.matchScore > 0)
+      .sort((a, b) => b.matchScore - a.matchScore || (a.id > b.id ? 1 : -1));
+
+    // 4) Результат (топ-N)
+    const items = scored.slice(0, take);
+    return { items, count: scored.length, categoryIds };
   }
 }

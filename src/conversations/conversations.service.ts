@@ -1,8 +1,12 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { Conversation, Message } from '@prisma/client';
-
+import { Conversation, Message, Prisma } from '@prisma/client';
+type ListConversationsParams = {
+    role?: 'client' | 'contractor';
+    take?: number;
+    cursor?: string; // conversationId
+};
 @Injectable()
 export class ConversationsService {
 
@@ -169,4 +173,139 @@ export class ConversationsService {
         return { conversation, firstMessage: message };
     }
 
+    async listMyConversations(userId: string, params: ListConversationsParams) {
+        const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
+
+        // фильтр по роли
+        const where: Prisma.ConversationWhereInput =
+          params.role === 'client'
+            ? { clientId: userId }
+            : params.role === 'contractor'
+              ? { contractor: { userId } }
+              : { OR: [{ clientId: userId }, { contractor: { userId } }] };
+
+        // ЯВНЫЙ select -> TS понимает, что есть messages
+        type Row = Prisma.ConversationGetPayload<{
+            select: {
+                id: true;
+                projectId: true;
+                clientId: true;
+                contractorId: true;
+                project: { select: { id: true; title: true; coverAttachmentId: true } };
+                client: { select: { id: true; name: true; avatarUrl: true } };
+                contractor: {
+                    select: {
+                        id: true;
+                        user: { select: { id: true; name: true; avatarUrl: true } };
+                    };
+                };
+                messages: {
+                    select: {
+                        id: true;
+                        createdAt: true;
+                        senderId: true;
+                        text: true;
+                        attachmentUrl: true;
+                        readAt: true;
+                    };
+                };
+            };
+        }>;
+
+        const items: Row[] = await this.prisma.conversation.findMany({
+            where,
+            take,
+            orderBy: { id: 'desc' }, // при наличии updatedAt лучше сортировать по нему
+            ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
+            select: {
+                id: true,
+                projectId: true,
+                clientId: true,
+                contractorId: true,
+                project: { select: { id: true, title: true, coverAttachmentId: true } },
+                client: { select: { id: true, name: true, avatarUrl: true } },
+                contractor: {
+                    select: {
+                        id: true,
+                        user: { select: { id: true, name: true, avatarUrl: true } },
+                    },
+                },
+                messages: {
+                    take: 1,
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        createdAt: true,
+                        senderId: true,
+                        text: true,
+                        attachmentUrl: true,
+                        readAt: true,
+                    },
+                },
+            },
+        });
+
+        const nextCursor = items.length === take ? items[items.length - 1].id : null;
+
+        // нормализуем: кладём lastMessage и не отдаём массив messages
+        const normalized = items.map((c) => {
+            const lastMessage: Message | null = (c.messages[0] as unknown as Message) ?? null;
+            // удаляем messages из выдачи
+            const { messages, ...rest } = c as any;
+            return { ...rest, lastMessage };
+        });
+
+        return { items: normalized, nextCursor };
+    }
+    async listMessagesTimeline(
+      conversationId: string,
+      userId: string,
+      take = 50,
+      cursor?: string,
+    ) {
+        // 0) Проверка доступа
+        const conv = await this.prisma.conversation.findUnique({
+            where: { id: conversationId },
+            select: { id: true, clientId: true, contractor: { select: { userId: true } } },
+        });
+        if (!conv) throw new NotFoundException('Conversation not found');
+        if (conv.clientId !== userId && conv.contractor.userId !== userId) {
+            throw new ForbiddenException('Not allowed for this conversation');
+        }
+
+        const _take = Math.min(Math.max(Number(take) || 50, 1), 100);
+
+        // 1) Если курсор передали — проверим, что это валидный message.id в этом разговоре
+        let cursorClause: any = undefined;
+        if (cursor) {
+            const cursorMsg = await this.prisma.message.findFirst({
+                where: { id: cursor, conversationId },
+                select: { id: true },
+            });
+            if (cursorMsg) {
+                cursorClause = { cursor: { id: cursor }, skip: 1 };
+            }
+            // если курсор не найден/не из этой беседы — проигнорируем его (вернём первую страницу)
+        }
+
+        // 2) Выдаём сообщения по времени (ASC)
+        const items = await this.prisma.message.findMany({
+            where: { conversationId },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], // стабильный порядок
+            take: _take,
+            ...cursorClause,
+            select: {
+                id: true,
+                createdAt: true,
+                senderId: true,
+                text: true,
+                attachmentUrl: true,
+                readAt: true,
+            },
+        });
+
+        const nextCursor = items.length === _take ? items[items.length - 1].id : null;
+
+        return { items, nextCursor };
+    }
 }

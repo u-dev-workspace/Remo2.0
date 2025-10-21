@@ -5,8 +5,11 @@ import { JwtGuard } from '../common/guards/jwt.guard';
 import { ConversationsService } from './conversations.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ListMessagesQueryDto } from './dto/list-messages.query.dto';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { StartConversationDto } from './dto/StartConversationDto';
+import { ListConversationsQueryDto } from './dto/ListConversationsQueryDto';
+import { TimelineQueryDto } from './dto/TimelineQueryDto';
+
 @ApiTags('Conversation')
 @ApiBearerAuth('bearerAuth')
 @UseGuards(JwtGuard)
@@ -44,5 +47,23 @@ export class ConversationsController {
     async start(@Body() dto: StartConversationDto, @Req() req: any) {
         const { projectId, contractorId, text } = dto;
         return this.service.startConversation(projectId, contractorId, req.user?.id, text);
+    }
+
+    @Get('mine')
+    async myConversations(
+      @Query(new ValidationPipe({ transform: true, whitelist: true })) query: ListConversationsQueryDto,
+      @Req() req: any,
+    ) {
+        return this.service.listMyConversations(req.user?.id, query);
+    }
+
+    @Get(':conversationId/messages/timeline')
+    async timeline(
+      @Param('conversationId') conversationId: string,
+      @Query(new ValidationPipe({ transform: true, whitelist: true })) query: TimelineQueryDto,
+      @Req() req: any,
+    ) {
+        const take = Number.isFinite(Number(query.take)) ? Number(query.take) : 50;
+        return this.service.listMessagesTimeline(conversationId, req.user?.id, take, query.cursor);
     }
 }

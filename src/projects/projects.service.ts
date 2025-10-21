@@ -11,13 +11,21 @@ import { promisify } from 'util';
 const pump = promisify(pipeline);
 
 type ProjectsListParams = {
-  mine?: boolean;
-  userId?: string;
+  // существующие:
+  mine?: boolean | string;
+  userId?: string | null;
   status?: string;
+  category?: string | string[];
   city?: string;
-  categoryId?: string;
-  take?: number;
   cursor?: string;
+  take?: number;
+
+  // новые:
+  propertyType?: 'APARTMENT' | 'HOUSE' | 'OFFICE' | 'RETAIL' | 'WAREHOUSE' | 'OTHER';
+  areaFrom?: number;
+  areaTo?: number;
+  budgetFrom?: number;
+  budgetTo?: number;
 };
 @Injectable()
 export class ProjectsService {
@@ -31,22 +39,32 @@ export class ProjectsService {
     }
   }
 
-  async create(clientId: string, dto: CreateProjectDto) {
-    // проверим категории, если передали
-    await this.assertAllCategoriesExist(dto.categoryIds ?? []);
-
-    return this.prisma.project.create({
+  async create(userId: string, dto: CreateProjectDto) {
+    const project = await this.prisma.project.create({
       data: {
-        clientId,
+        clientId: userId,
         title: dto.title,
         description: dto.description,
-        city: dto.city ?? null,
-        ...(dto.categoryIds?.length
-          ? { categories: { connect: dto.categoryIds.map((id) => ({ id })) } }
+        cityId: dto.city ?? null,
+
+        // новые поля
+        propertyType: dto.propertyType ?? null,
+        area: dto.area ?? null,
+        budgetEstimated: dto.budgetEstimated ?? null,
+
+        // категории
+        ...(dto.categoryIds
+          ? { categories: { connect: dto.categoryIds.map(id => ({ id })) } }
           : {}),
       },
-      include: { categories: true },
+      include: {
+        coverAttachment: true,
+        categories: true,
+        client: { select: { id: true, name: true, cityId: true } },
+      },
     });
+
+    return project;
   }
 
   async findOne(id: string) {
@@ -56,6 +74,15 @@ export class ProjectsService {
         attachments: { orderBy: { sortOrder: 'asc' } },
         coverAttachment: true,
         categories: true,
+        client: {
+          select: {
+            id: true,
+            name: true,
+            cityId: true,                // ← скалярное поле (boolean флаг)
+
+          },
+        },
+
       },
     });
     if (!project) throw new NotFoundException('Project not found');
@@ -65,32 +92,41 @@ export class ProjectsService {
   async update(id: string, dto: UpdateProjectDto) {
     await this.ensureProject(id);
 
-    // coverAttachmentId как раньше
-    const coverAttachmentId =
-      Object.prototype.hasOwnProperty.call(dto, 'coverAttachmentId')
-        ? dto.coverAttachmentId ?? null
-        : undefined;
+    const data: any = {
+      // базовые поля
+      ...(dto.title !== undefined ? { title: dto.title } : {}),
+      ...(dto.description !== undefined ? { description: dto.description } : {}),
+      ...(dto.city !== undefined ? { city: dto.city } : {}),
 
-    // если поле categoryIds присутствует — полная замена
-    let categoriesUpdate: { set: { id: string }[] } | undefined = undefined;
-    if (Object.prototype.hasOwnProperty.call(dto, 'categoryIds')) {
-      const ids = dto.categoryIds ?? [];
-      await this.assertAllCategoriesExist(ids);
-      categoriesUpdate = { set: ids.map((cid) => ({ id: cid })) };
+      // новые поля
+      ...(dto.propertyType !== undefined ? { propertyType: dto.propertyType } : {}),
+      ...(dto.area !== undefined ? { area: dto.area } : {}),
+      ...(dto.budgetEstimated !== undefined ? { budgetEstimated: dto.budgetEstimated } : {}),
+
+      // обложка
+      ...(dto.coverAttachmentId !== undefined ? { coverAttachmentId: dto.coverAttachmentId } : {}),
+    };
+
+    // категории: поддержка очистки, частичного обновления
+    if (dto.categoryIds !== undefined) {
+      data.categories = {
+        set: dto.categoryIds.map(id => ({ id })), // если [], то очистит все категории
+      };
     }
 
-    return this.prisma.project.update({
-      where: { id },
-      data: {
-        title: dto.title,
-        description: dto.description,
-        city: dto.city,
-        coverAttachmentId,
-        ...(categoriesUpdate ? { categories: categoriesUpdate } : {}),
+    const project = await this.prisma.project.update({
+      where: { id }, // ← исправлено
+      data,
+      include: {
+        coverAttachment: true,
+        categories: true,
+        client: { select: { id: true, name: true, cityId: true } },
       },
-      include: { categories: true },
     });
+
+    return project;
   }
+
 
   async remove(id: string) {
     // каскад удалит вложения, если в схеме onDelete: Cascade
@@ -196,27 +232,62 @@ export class ProjectsService {
     return exists;
   }
 
-  async list(params: ProjectsListParams) {
+  async listProjects(params: ProjectsListParams, currentUserId?: string | null) {
+    const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
+
+    // mine как 'true' строка → boolean
+    const mine = typeof params.mine === 'string' ? params.mine === 'true' : !!params.mine;
+
     const where: any = {};
 
-    if (params.mine && params.userId) {
-      where.clientId = params.userId;
+    if (mine && currentUserId) {
+      where.clientId = currentUserId;
     }
-    if (params.status) where.status = params.status as any;
-    if (params.city) where.city = params.city;
-    if (params.categoryId) where.categories = { some: { id: params.categoryId } };
 
-    const take = Math.min(Math.max(params.take || 20, 1), 100);
+    if (params.status) {
+      where.status = params.status as any;
+    }
+
+    if (params.city) {
+      // точное равенство или contains — подбери под свою логику
+      where.city = { contains: params.city, mode: 'insensitive' };
+    }
+
+    if (params.propertyType) {
+      where.propertyType = params.propertyType;
+    }
+
+    // Площадь
+    if (params.areaFrom != null || params.areaTo != null) {
+      where.area = {};
+      if (params.areaFrom != null) where.area.gte = Number(params.areaFrom);
+      if (params.areaTo != null) where.area.lte = Number(params.areaTo);
+    }
+
+    // Бюджет
+    if (params.budgetFrom != null || params.budgetTo != null) {
+      where.budgetEstimated = {};
+      if (params.budgetFrom != null) where.budgetEstimated.gte = Number(params.budgetFrom);
+      if (params.budgetTo != null) where.budgetEstimated.lte = Number(params.budgetTo);
+    }
+
+    // Категории (если было)
+    if (params.category) {
+      const ids = Array.isArray(params.category) ? params.category : [params.category];
+      where.categories = { some: { id: { in: ids } } };
+    }
+
     const query: any = {
       where,
       orderBy: { createdAt: 'desc' },
       take,
       include: {
-        categories: true,
         coverAttachment: true,
+        categories: true,
         client: { select: { id: true, name: true, city: true } },
       },
     };
+
     if (params.cursor) {
       query.cursor = { id: params.cursor };
       query.skip = 1;
@@ -224,8 +295,8 @@ export class ProjectsService {
 
     const items = await this.prisma.project.findMany(query);
     const nextCursor = items.length === take ? items[items.length - 1].id : null;
+
     return { items, nextCursor };
   }
-
 }
 

@@ -6,7 +6,7 @@ import {
   Param,
   Patch,
   Post, Query,
-  Req, UseGuards,
+  Req, UseGuards, ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,6 +22,7 @@ import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddAttachmentDto } from './dto/add-attachment.dto';
 import { JwtGuard } from '../common/guards/jwt.guard';
+import { ProjectsListQueryDto } from './dto/projects-list.dto';
 
 @ApiTags('Project') // ← появится группа в Swagger
 @ApiBearerAuth('bearerAuth')
@@ -106,24 +107,14 @@ export class ProjectsController {
   @ApiQuery({ name: 'categoryId', required: false })
   @ApiQuery({ name: 'take', required: false, description: 'Кол-во (по умолчанию 20)' })
   @ApiQuery({ name: 'cursor', required: false, description: 'Cursor (project.id)' })
+  @ApiOkResponse({ description: 'Список проектов' })
+  @Get()
   async list(
+    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: ProjectsListQueryDto,
     @Req() req: any,
-    @Query('mine') mine?: string,
-    @Query('status') status?: string,
-    @Query('city') city?: string,
-    @Query('categoryId') categoryId?: string,
-    @Query('take') take = '20',
-    @Query('cursor') cursor?: string,
   ) {
-    const userId = req.user?.id;
-    return this.service.list({
-      mine: mine === 'true',
-      userId,
-      status,
-      city,
-      categoryId,
-      take: Number(take) || 20,
-      cursor,
-    });
+    const userId = req.user?.id || null;
+    return this.service.listProjects(query, userId);
   }
+
 }

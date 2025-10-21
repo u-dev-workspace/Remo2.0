@@ -31,7 +31,7 @@ export class AuthService {
                         passwordHash: hash,
                         role: data.role as any, // лучше сделать Enum
                         name: data.name,
-                        city: data.city,
+                        cityId: data.city,
                     },
                 });
 

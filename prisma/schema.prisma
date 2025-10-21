@@ -27,6 +27,25 @@ enum Plan {
   PRO
 }
 
+model City {
+  id        String   @id @default(cuid())
+  slug      String   @unique // latin-slug: almaty, astana, ...
+  nameRu    String
+  nameKk    String?
+  nameEn    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // обратные связи
+  users       User[]
+  contractors Contractor[]
+  projects    Project[]
+
+  @@index([nameRu])
+  @@index([nameKk])
+  @@index([slug])
+}
+
 // ========= Models =========
 model User {
   id        String   @id @default(cuid())
@@ -38,7 +57,6 @@ model User {
   phone        String? @unique
   passwordHash String?
   name         String?
-  city         String?
   avatarUrl    String?
 
   contractor Contractor?
@@ -54,6 +72,8 @@ model User {
   isBanned     Boolean        @default(false)
   Conversation Conversation[]
   Subscription Subscription[]
+  City         City?          @relation(fields: [cityId], references: [id])
+  cityId       String?
 }
 
 model Contractor {
@@ -67,6 +87,8 @@ model Contractor {
   categories           Category[]             @relation("ContractorCategories")
   conversations        Conversation[] // удобная обратная связь (через relation ниже)
   ContractorAttachment ContractorAttachment[]
+  cityId               String?
+  city                 City?                  @relation(fields: [cityId], references: [id], onDelete: SetNull)
 }
 
 model Category {
@@ -75,6 +97,15 @@ model Category {
 
   projects    Project[]    @relation("ProjectCategories")
   contractors Contractor[] @relation("ContractorCategories")
+}
+
+enum PremisesType {
+  APARTMENT
+  HOUSE
+  OFFICE
+  RETAIL
+  WAREHOUSE
+  OTHER
 }
 
 model Project {
@@ -88,7 +119,6 @@ model Project {
 
   title       String
   description String
-  city        String?
 
   coverAttachmentId String?
   coverAttachment   Attachment? @relation("ProjectCover", fields: [coverAttachmentId], references: [id], onDelete: SetNull)
@@ -99,7 +129,16 @@ model Project {
   categories   Category[]     @relation("ProjectCategories")
   Conversation Conversation[]
 
+  propertyType    PremisesType?
+  area            Float? // площадь (кв. м)
+  budgetEstimated Int? // предполагаемый бюджет (например, KZT)
+  cityId          String?
+  city            City?         @relation(fields: [cityId], references: [id], onDelete: SetNull)
+
   @@index([clientId])
+  @@index([propertyType])
+  @@index([area])
+  @@index([budgetEstimated])
 }
 
 model Attachment {
