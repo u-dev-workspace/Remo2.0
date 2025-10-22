@@ -100,21 +100,11 @@ export class ProjectsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Список проектов (общий каталог) или проекты текущего клиента, если указать mine=true' })
-  @ApiQuery({ name: 'mine', required: false, description: 'Если true — вернуть только проекты текущего пользователя' })
-  @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'city', required: false })
-  @ApiQuery({ name: 'categoryId', required: false })
-  @ApiQuery({ name: 'take', required: false, description: 'Кол-во (по умолчанию 20)' })
-  @ApiQuery({ name: 'cursor', required: false, description: 'Cursor (project.id)' })
-  @ApiOkResponse({ description: 'Список проектов' })
-  @Get()
   async list(
     @Query(new ValidationPipe({ transform: true, whitelist: true })) query: ProjectsListQueryDto,
     @Req() req: any,
   ) {
-    const userId = req.user?.id || null;
-    return this.service.listProjects(query, userId);
+    const userId = req.user?.id ?? null;
+    return this.service.listProjects({ ...query, userId }); // ← один аргумент
   }
-
 }

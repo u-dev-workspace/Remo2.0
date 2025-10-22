@@ -7,6 +7,7 @@ import { join, extname } from 'path';
 import fs, { promises as fsp, createWriteStream } from 'fs';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
+import { ProjectsListQueryDto } from './dto/projects-list.dto';
 
 const pump = promisify(pipeline);
 
@@ -232,48 +233,31 @@ export class ProjectsService {
     return exists;
   }
 
-  async listProjects(params: ProjectsListParams, currentUserId?: string | null) {
+  async listProjects(params: ProjectsListQueryDto & { userId?: string | null }) {
     const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
-
-    // mine как 'true' строка → boolean
-    const mine = typeof params.mine === 'string' ? params.mine === 'true' : !!params.mine;
 
     const where: any = {};
 
-    if (mine && currentUserId) {
-      where.clientId = currentUserId;
+    // mine=true → только проекты текущего пользователя
+    const mine =
+      typeof (params as any).mine === 'string'
+        ? (params as any).mine === 'true'
+        : Boolean((params as any).mine);
+
+    if (mine && params.userId) {
+      where.clientId = params.userId;
     }
 
-    if (params.status) {
-      where.status = params.status as any;
-    }
+    if (params.status) where.status = params.status as any;
 
-    if (params.city) {
-      // точное равенство или contains — подбери под свою логику
-      where.city = { contains: params.city, mode: 'insensitive' };
-    }
+    // новый справочник городов
+    if ((params as any).cityId) where.cityId = (params as any).cityId;
 
-    if (params.propertyType) {
-      where.propertyType = params.propertyType;
-    }
-
-    // Площадь
-    if (params.areaFrom != null || params.areaTo != null) {
-      where.area = {};
-      if (params.areaFrom != null) where.area.gte = Number(params.areaFrom);
-      if (params.areaTo != null) where.area.lte = Number(params.areaTo);
-    }
-
-    // Бюджет
-    if (params.budgetFrom != null || params.budgetTo != null) {
-      where.budgetEstimated = {};
-      if (params.budgetFrom != null) where.budgetEstimated.gte = Number(params.budgetFrom);
-      if (params.budgetTo != null) where.budgetEstimated.lte = Number(params.budgetTo);
-    }
-
-    // Категории (если было)
-    if (params.category) {
-      const ids = Array.isArray(params.category) ? params.category : [params.category];
+    // категории (одна или несколько)
+    if ((params as any).category) {
+      const ids = Array.isArray((params as any).category)
+        ? (params as any).category
+        : [(params as any).category];
       where.categories = { some: { id: { in: ids } } };
     }
 
@@ -281,10 +265,20 @@ export class ProjectsService {
       where,
       orderBy: { createdAt: 'desc' },
       take,
-      include: {
-        coverAttachment: true,
-        categories: true,
-        client: { select: { id: true, name: true, city: true } },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        createdAt: true,
+        status: true,
+        cityId: true,
+        area: true,
+        propertyType: true,
+        budgetEstimated: true,
+        city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
+        coverAttachment: { select: { id: true, url: true } },
+        categories: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true, avatarUrl: true, cityId: true } },
       },
     };
 
