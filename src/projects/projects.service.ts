@@ -8,6 +8,7 @@ import fs, { promises as fsp, createWriteStream } from 'fs';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { ProjectsListQueryDto } from './dto/projects-list.dto';
+import { Prisma } from '@prisma/client';
 
 const pump = promisify(pipeline);
 
@@ -41,31 +42,67 @@ export class ProjectsService {
   }
 
   async create(userId: string, dto: CreateProjectDto) {
-    const project = await this.prisma.project.create({
-      data: {
-        clientId: userId,
-        title: dto.title,
-        description: dto.description,
-        cityId: dto.city ?? null,
+    // 1) clientId — лучше брать из JWT, а не из dto
+    const clientId = userId ?? dto.clientId;
+    if (!clientId) throw new BadRequestException('clientId is required');
 
-        // новые поля
-        propertyType: dto.propertyType ?? null,
-        area: dto.area ?? null,
-        budgetEstimated: dto.budgetEstimated ?? null,
+    // 2) Проверим cityId (если пришёл)
+    if (dto.cityId) {
+      const city = await this.prisma.city.findUnique({ where: { id: dto.cityId } });
+      if (!city) throw new BadRequestException('cityId is invalid');
+    }
 
-        // категории
-        ...(dto.categoryIds
-          ? { categories: { connect: dto.categoryIds.map(id => ({ id })) } }
-          : {}),
-      },
-      include: {
-        coverAttachment: true,
-        categories: true,
-        client: { select: { id: true, name: true, cityId: true } },
-      },
-    });
+    // 3) Проверим категории (если пришли)
+    if (dto.categoryIds?.length) {
+      const categories = await this.prisma.category.findMany({
+        where: { id: { in: dto.categoryIds } },
+        select: { id: true },
+      });
+      if (categories.length !== dto.categoryIds.length) {
+        const existing = new Set(categories.map(c => c.id));
+        const missing = dto.categoryIds.filter(id => !existing.has(id));
+        throw new BadRequestException(`Unknown categoryIds: ${missing.join(', ')}`);
+      }
+    }
 
-    return project;
+    try {
+      const project = await this.prisma.project.create({
+        data: {
+          clientId,
+          title: dto.title,
+          description: dto.description,
+          cityId: dto.cityId ?? null,
+
+          propertyType: dto.propertyType ?? null,
+          area: dto.area ?? null,
+          budgetEstimated: dto.budgetEstimated ?? null,
+
+          ...(dto.categoryIds?.length
+            ? { categories: { connect: dto.categoryIds.map(id => ({ id })) } }
+            : {}),
+        },
+        include: {
+          coverAttachment: true,
+          categories: true,
+          city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
+          client: { select: { id: true, name: true, avatarUrl: true, cityId: true } },
+        },
+      });
+
+      return project;
+    } catch (e: any) {
+      // Нормализуем типичные Prisma-ошибки во что-то понятное фронту
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === 'P2003') {
+          // FK constraint failed
+          throw new BadRequestException('Invalid foreign key: check cityId / categoryIds / clientId');
+        }
+        if (e.code === 'P2002') {
+          throw new BadRequestException('Unique constraint violation');
+        }
+      }
+      throw e;
+    }
   }
 
   async findOne(id: string) {
@@ -97,7 +134,7 @@ export class ProjectsService {
       // базовые поля
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
-      ...(dto.city !== undefined ? { city: dto.city } : {}),
+      ...(dto.cityId !== undefined ? { cityId: dto.cityId } : {}),
 
       // новые поля
       ...(dto.propertyType !== undefined ? { propertyType: dto.propertyType } : {}),
