@@ -47,15 +47,15 @@ export class ProjectsController {
     return this.service.findOne(projectId);
   }
 
-  @Patch(':projectId')
-  @ApiOperation({ summary: 'Обновить проект' })
-  @ApiOkResponse()
+  @Patch(':id')
   async update(
-    @Param('projectId') projectId: string,
-    @Body() dto: UpdateProjectDto,
+    @Param('id') id: string,
+    @Body(new ValidationPipe({ transform: true, whitelist: true })) dto: UpdateProjectDto,
+    @Req() req: any,
   ) {
-    return this.service.update(projectId, dto);
+    return this.service.update(id, dto, req.user?.id);
   }
+
 
   @Delete(':projectId')
   @ApiOperation({ summary: 'Удалить проект' })

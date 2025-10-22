@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -127,17 +127,62 @@ export class ProjectsService {
     return project;
   }
 
-  async update(id: string, dto: UpdateProjectDto) {
-    await this.ensureProject(id);
+  async update(id: string, dto: UpdateProjectDto, currentUserId?: string | null) {
+    // 0) проект существует + проверка владельца (если передаёшь currentUserId)
+    const existing = await this.prisma.project.findUnique({
+      where: { id },
+      select: { id: true, clientId: true },
+    });
+    if (!existing) throw new NotFoundException('Project not found');
+    if (currentUserId && existing.clientId !== currentUserId) {
+      throw new ForbiddenException('You are not the owner of this project');
+    }
 
-    const data: any = {
-      // базовые поля
+    // 1) Валидация FK: cityId (если прислали)
+    if (dto.cityId !== undefined && dto.cityId !== null) {
+      const city = await this.prisma.city.findUnique({ where: { id: dto.cityId } });
+      if (!city) throw new BadRequestException('cityId is invalid');
+    }
+
+    // 2) Валидация категорий (если прислали)
+    if (dto.categoryIds !== undefined) {
+      if (!Array.isArray(dto.categoryIds)) {
+        throw new BadRequestException('categoryIds must be an array of strings');
+      }
+      if (dto.categoryIds.length) {
+        const ok = await this.prisma.category.findMany({
+          where: { id: { in: dto.categoryIds } },
+          select: { id: true },
+        });
+        if (ok.length !== dto.categoryIds.length) {
+          const set = new Set(ok.map(c => c.id));
+          const missing = dto.categoryIds.filter(x => !set.has(x));
+          throw new BadRequestException(`Unknown categoryIds: ${missing.join(', ')}`);
+        }
+      }
+    }
+
+    // 3) Валидация обложки (если прислали coverAttachmentId)
+    if (dto.coverAttachmentId !== undefined && dto.coverAttachmentId !== null) {
+      const att = await this.prisma.attachment.findUnique({
+        where: { id: dto.coverAttachmentId },
+        select: { id: true, projectId: true },
+      });
+      if (!att || att.projectId !== id) {
+        throw new BadRequestException('coverAttachmentId must belong to this project');
+      }
+    }
+
+    // 4) Собираем data только из присланных полей
+    const data: Prisma.ProjectUpdateInput = {
       ...(dto.title !== undefined ? { title: dto.title } : {}),
       ...(dto.description !== undefined ? { description: dto.description } : {}),
+
+      // справочник города
       ...(dto.cityId !== undefined ? { cityId: dto.cityId } : {}),
 
       // новые поля
-      ...(dto.propertyType !== undefined ? { propertyType: dto.propertyType } : {}),
+      ...(dto.propertyType !== undefined ? { propertyType: dto.propertyType as any } : {}),
       ...(dto.area !== undefined ? { area: dto.area } : {}),
       ...(dto.budgetEstimated !== undefined ? { budgetEstimated: dto.budgetEstimated } : {}),
 
@@ -145,24 +190,34 @@ export class ProjectsService {
       ...(dto.coverAttachmentId !== undefined ? { coverAttachmentId: dto.coverAttachmentId } : {}),
     };
 
-    // категории: поддержка очистки, частичного обновления
+    // категории: set заменяет полностью. Если прислали пустой массив — очистим все категории
     if (dto.categoryIds !== undefined) {
-      data.categories = {
-        set: dto.categoryIds.map(id => ({ id })), // если [], то очистит все категории
-      };
+      data.categories = { set: dto.categoryIds.map(id => ({ id })) };
     }
 
-    const project = await this.prisma.project.update({
-      where: { id }, // ← исправлено
-      data,
-      include: {
-        coverAttachment: true,
-        categories: true,
-        client: { select: { id: true, name: true, cityId: true } },
-      },
-    });
-
-    return project;
+    try {
+      const project = await this.prisma.project.update({
+        where: { id },
+        data,
+        include: {
+          coverAttachment: true,
+          categories: { select: { id: true, name: true } },
+          city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
+          client: { select: { id: true, name: true, avatarUrl: true, cityId: true } },
+        },
+      });
+      return project;
+    } catch (e: any) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        if (e.code === 'P2003') {
+          throw new BadRequestException('Invalid foreign key: cityId / categoryIds / coverAttachmentId');
+        }
+        if (e.code === 'P2002') {
+          throw new BadRequestException('Unique constraint violation');
+        }
+      }
+      throw e;
+    }
   }
 
 
