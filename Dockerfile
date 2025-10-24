@@ -5,62 +5,75 @@ FROM node:20-alpine AS base
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Устанавливаем Yarn через Corepack (Yarn 4)
-RUN corepack enable && corepack prepare yarn@4.10.3 --activate
+# Ничего не качаем: просто включаем corepack-шимы
+RUN corepack enable
+
+# Сначала кладем vendored Yarn и конфиг, чтобы Yarn 4 взялся локально
+COPY .yarn ./.yarn
+COPY .yarnrc.yml ./
+
+# Быстрый sanity-check: точно Yarn 4 из репо
+RUN node ./.yarn/releases/yarn-4.10.3.cjs -v
 
 # ==============================
 # === BUILD STAGE
 # ==============================
 FROM base AS build
 
-# Копируем только нужные файлы для зависимостей
-COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn ./.yarn
+# Prisma требует OpenSSL и в build-стадии тоже
+RUN apk add --no-cache openssl
 
-# Устанавливаем зависимости (включая dev)
-RUN yarn install --mode=skip-build
+# Манифесты для установки зависимостей
+COPY package.json yarn.lock ./
 
+# Кэш Yarn внутри контейнера (ускоряет повторы)
+ENV YARN_CACHE_FOLDER=/yarn_cache
+RUN mkdir -p $YARN_CACHE_FOLDER
 
-# Копируем исходники и Prisma
+# Установка зависимостей без сборки (Yarn 4, без сети для самого Yarn)
+RUN yarn install --immutable --mode=skip-build
+
+# Исходники и Prisma
 COPY prisma ./prisma
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
 
-# Генерируем Prisma Client и билдим проект
+# Генерация Prisma Client и билд
 RUN yarn prisma generate && yarn build
 
 # ==============================
-# === RUNTIME (продакшн)
+# === RUNTIME (prod)
 # ==============================
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Устанавливаем зависимости для Prisma (OpenSSL)
+# Для Prisma runtime
 RUN apk add --no-cache openssl
 
-# Копируем только нужные файлы
-COPY package.json yarn.lock ./
+# Vendored Yarn и конфиг (чтобы любой yarn-командой управлял Yarn 4)
 COPY .yarn ./.yarn
 COPY .yarnrc.yml ./
 
-# Устанавливаем только продакшн-зависимости
+# Манифесты и прод-зависимости
+COPY package.json yarn.lock ./
+ENV YARN_CACHE_FOLDER=/yarn_cache
+RUN mkdir -p $YARN_CACHE_FOLDER
 RUN yarn install --immutable --mode=skip-build
 
-# Копируем Prisma и сборку
+# Сборка и Prisma схемы
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 
-# (если нужно) копируем .env
+# (если нужно) переменные окружения
 COPY .env .env
 
-# Создаём директорию для загрузок
+# uploads + права
 RUN mkdir -p /app/uploads && chown -R node:node /app
 USER node
 
 EXPOSE 8080
 
-# Миграции и запуск приложения
+# Генерация клиента (на случай обновления окружения) + миграции + старт
 CMD ["sh", "-c", "yarn prisma generate && yarn prisma migrate deploy && node dist/src/main.js"]
-
