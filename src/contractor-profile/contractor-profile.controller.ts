@@ -16,6 +16,12 @@ export class ContractorProfileController {
     return this.contractorProfileService.getProfileByUserId(userId);
   }
 
+  @Get('profile/:contractorId')
+  async getProfileById(@Req() req: any, @Param('contractorId') contractorId : string ) {
+
+    return this.contractorProfileService.getProfileByContractorId(contractorId);
+  }
+
   @Patch('me')
   @ApiOperation({ summary: 'Обновить профиль исполнителя (companyName, about, и опционально ПОЛНАЯ замена категорий)' })
   @ApiResponse({ status: 200, description: 'Профиль обновлён' })

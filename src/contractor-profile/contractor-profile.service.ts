@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { AddCategoriesDto, UpdateContractorDto } from './dto/update-contractor.dto';
+import { take } from 'rxjs';
 
 @Injectable()
 export class ContractorProfileService {
@@ -13,6 +14,21 @@ export class ContractorProfileService {
       where: { userId },
       include:{
         categories:true,
+      }
+    });
+    console.log('contractor =>', contractor);
+    if (!contractor) throw new NotFoundException('Contractor profile not found');
+    return contractor;
+  }
+
+  async getProfileByContractorId(contractorId: string) {
+    console.log('userId =>', contractorId);
+    const contractor = await this.prisma.contractor.findUnique({
+      where: { id : contractorId },
+      include:{
+        categories:true,
+        ContractorAttachment: { take: 3},
+        city: true
       }
     });
     console.log('contractor =>', contractor);
@@ -106,4 +122,6 @@ export class ContractorProfileService {
       data: { userId },
     });
   }
+
+
 }
