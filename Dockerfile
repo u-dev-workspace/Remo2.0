@@ -5,7 +5,6 @@ FROM node:20-alpine AS base
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Устанавливаем Yarn через Corepack (Yarn 4)
 RUN corepack enable && corepack prepare yarn@4.10.3 --activate
 
 # ==============================
@@ -13,49 +12,48 @@ RUN corepack enable && corepack prepare yarn@4.10.3 --activate
 # ==============================
 FROM base AS build
 
-# Копируем только нужные файлы для зависимостей
 COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn ./.yarn
 
-# Устанавливаем зависимости (включая dev)
 RUN yarn install --mode=skip-build
 
-
-# Копируем исходники и Prisma
 COPY prisma ./prisma
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
 
-# Генерируем Prisma Client и билдим проект
 RUN yarn prisma generate && yarn build
 
 # ==============================
-# === RUNTIME (продакшн)
+# === RUNTIME (production)
 # ==============================
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Устанавливаем зависимости для Prisma (OpenSSL)
+# Для Prisma нужен OpenSSL
 RUN apk add --no-cache openssl
 
-# Копируем только нужные файлы
-COPY package.json yarn.lock ./
-COPY .yarn ./.yarn
-COPY .yarnrc.yml ./
+# ВАЖНО: копируем lockfile и Yarn-артефакты ИЗ build-стадии,
+# чтобы runtime видел ТОЧНО такой же lockfile и версию Yarn
+COPY --from=build /app/yarn.lock ./yarn.lock
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/.yarn ./.yarn
+COPY --from=build /app/.yarnrc.yml ./.yarnrc.yml
 
-# Устанавливаем только продакшн-зависимости
+# Устанавливаем зависимости по перенесённому lockfile
+# (теперь --immutable пройдет без YN0028)
 RUN yarn install --immutable --mode=skip-build
 
-# Копируем Prisma и сборку
+# Копируем Prisma и сборку из build
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 
-# (если нужно) копируем .env
+# (опционально) окружение — лучше через переменные контейнера/секреты,
+# но если нужно — оставляю как было:
 COPY .env .env
 
-# Создаём директорию для загрузок
+# Директория для загрузок и права
 RUN mkdir -p /app/uploads && chown -R node:node /app
 USER node
 
