@@ -43,6 +43,8 @@ async function main() {
   console.log(`Seeded ${cities.length} cities`);
 }
 
+
+
 main()
   .catch((e) => { console.error(e); process.exit(1); })
   .finally(async () => { await prisma.$disconnect(); });

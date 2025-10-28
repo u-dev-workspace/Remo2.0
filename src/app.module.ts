@@ -16,6 +16,7 @@ import { ContractorAttachmentsModule } from './contractor-attachments/contractor
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { UserModule } from './user/user.module';
 import { SearchModule } from './search/search.module';
+import { ServicesModule } from './services/services.module';
 
 
 @Module({
@@ -33,6 +34,7 @@ import { SearchModule } from './search/search.module';
         RecommendationsModule,
         UserModule,
         SearchModule,
+        ServicesModule,
         EventEmitterModule.forRoot(),
     ],
     providers: [
