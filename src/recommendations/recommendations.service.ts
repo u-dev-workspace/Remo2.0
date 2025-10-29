@@ -1,197 +1,229 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, ProjectStatus } from '@prisma/client';
 
-type ListParams = {
-  status?: string;
-  cityId?: string;
-  take?: number;
-  cursor?: string;
-  excludeTalked?: boolean;
-  debug?: boolean;
-};
-type HomeProjectsParams = {
-  take?: number;
-  cursor?: string;   // Project.id курсор
-  cityId?: string;   // опциональный фильтр по городу
-  status?: 'OPEN' | 'IN_TALK' | 'CLOSED' | 'ARCHIVED'; // при желании
+type ScoreRow<T> = T & {
+  matchScore: number;
+  match: {
+    services: Array<{
+      serviceId: string;
+      serviceSlug?: string;
+      serviceName?: string;
+      projectCats: string[];     // учтённые (выбранные или все) категории проекта по этой услуге
+      contractorCats: string[];  // учтённые категории исполнителя по этой услуге
+      inter: string[];           // пересечение категорий
+    }>;
+  };
 };
 
-type RecommendContractorsForClientParams = {
-  take?: number;       // сколько вернуть
-  cityId?: string;     // опционально: фильтр исполнителей по городу
-  excludeSelf?: boolean; // исключать контрагента, чей userId == clientUserId (по умолчанию true)
-};
-@Injectable()
 export class RecommendationsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // --------- helpers ---------
+  private uniq<T>(arr: T[]): T[] {
+    return [...new Set(arr)];
+  }
 
-  async projectsForContractor(userId: string, params: ListParams) {
-    if (!userId) throw new BadRequestException('userId is required');
+  // “выбранные или все” категории по услуге у проекта
+  private resolvedProjectCats(ps: {
+    service: { categories: { id: string }[] };
+    selectedCategories: { categoryId: string }[];
+  }): string[] {
+    const all = ps.service.categories.map(c => c.id);
+    const selected = ps.selectedCategories?.map(x => x.categoryId) ?? [];
+    return selected.length ? selected : all;
+  }
 
-    const contractor = await this.prisma.contractor.findUnique({
-      where: { userId },
-      include: { categories: { select: { id: true, name: true } } },
-    });
-    if (!contractor) throw new NotFoundException('Contractor profile not found');
+  // “выбранные или все” категории по услуге у исполнителя
+  private resolvedContractorCats(cs: {
+    service: { categories: { id: string }[] };
+    selectedCategories: { categoryId: string }[];
+  }): string[] {
+    const all = cs.service.categories.map(c => c.id);
+    const selected = cs.selectedCategories?.map(x => x.categoryId) ?? [];
+    return selected.length ? selected : all;
+  }
 
-    const categoryIds = contractor.categories.map(c => c.id);
-    if (!categoryIds.length) {
-      return { items: [], nextCursor: null, ...(params.debug ? { debug: { reason: 'no_contractor_categories' } } : {}) };
-    }
+  // размер и набор пересечения
+  private intersect(a: string[], b: string[]) {
+    const sb = new Set(b);
+    const inter = a.filter(x => sb.has(x));
+    return inter;
+    // длину возьмём как inter.length
+  }
 
-    // нормализуем статус
-    let statusFilter: ProjectStatus | undefined;
-    if (params.status) {
-      const u = params.status.toUpperCase();
-      if ((Object.values(ProjectStatus) as string[]).includes(u)) {
-        statusFilter = u as ProjectStatus;
-      }
-    }
+  // --------- 1) Исполнители для проекта ---------
+  async recommendContractorsForProject(
+    projectId: string,
+    opts?: { take?: number; sameCityBoost?: boolean },
+  ) {
+    const take = Math.min(Math.max(opts?.take ?? 20, 1), 100);
 
-    // --- where (БЕЗ mode для MySQL) ---
-    const where: Prisma.ProjectWhereInput = {
-      categories: { some: { id: { in: categoryIds } } },
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(params.cityId
-        ? {
-          // равенство по городу (MySQL обычно case-insensitive из-за коллации *_ci)
-          OR: [{ cityId: { equals: params.cityId } }, { cityId: null }],
-          // если хочешь частичное совпадение:
-          // OR: [{ city: { contains: params.city } }, { city: null }],
-        }
-        : {}),
-    };
-
-    // исключить проекты, где уже был диалог (если включено)
-    let excludedProjectIds: string[] = [];
-    if (params.excludeTalked !== false) {
-      const conversations = await this.prisma.conversation.findMany({
-        where: { contractorId: contractor.id },
-        select: { projectId: true },
+    try {
+      // 1) Базовая инфа о проекте (без обратной связи на services)
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { id: true, cityId: true },
       });
-      excludedProjectIds = conversations.map(c => c.projectId);
-      if (excludedProjectIds.length) (where as any).id = { notIn: excludedProjectIds };
-    }
-
-    const take = Math.min(Math.max(params.take || 20, 1), 100);
-
-    const query: Prisma.ProjectFindManyArgs = {
-      where,
-      orderBy: { createdAt: 'desc' },
-      take,
-      include: {
-        categories: true,
-        coverAttachment: true,
-        client: { select: { id: true, name: true, cityId: true, avatarUrl:true } },
-        attachments: {
-          take: 3, // ← возвращает только первые 3 вложения
-        },
-      },
-    };
-
-    // валидируем cursor
-    if (params.cursor) {
-      const exists = await this.prisma.project.findFirst({
-        where: { ...where, id: params.cursor },
-        select: { id: true },
-      });
-      if (exists) {
-        query.cursor = { id: params.cursor };
-        (query as any).skip = 1;
+      if (!project) {
+        // вернём пусто, чтобы не заваливать 500
+        return { items: [], count: 0, note: 'Project not found' };
       }
-    }
 
-    // --- debug counters (типизируем как number | undefined) ---
-    let totalMatch: number | undefined;
-    let totalAfterExclusion: number | undefined;
-    if (params.debug) {
-      totalMatch = await this.prisma.project.count({
-        where: {
-          categories: { some: { id: { in: categoryIds } } },
-          ...(statusFilter ? { status: statusFilter } : {}),
-          // или если используешь slug:
-          ...(params.cityId
-            ? { OR: [{ cityId: params.cityId }, { cityId: null }] }
-            : {}),
-        },
-      });
-      if (excludedProjectIds.length) {
-        totalAfterExclusion = await this.prisma.project.count({ where });
-      }
-    }
-
-    const items = await this.prisma.project.findMany(query);
-    const nextCursor = items.length === take ? items[items.length - 1].id : null;
-
-    return {
-      items,
-      nextCursor,
-      ...(params.debug
-        ? {
-          debug: {
-            contractorId: contractor.id,
-            contractorCategoryIds: categoryIds,
-            contractorCategoryNames: contractor.categories.map(c => c.name),
-            where,
-            totalMatch,
-            excludedProjectIds,
-            totalAfterExclusion,
+      // 2) ЯВНО читаем ProjectService по projectId
+      const projectServices = await this.prisma.projectService.findMany({
+        where: { projectId },
+        select: {
+          service: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+              categories: { select: { id: true } },
+            },
           },
-        }
-        : {}),
-    };
+          selectedCategories: { select: { categoryId: true } },
+        },
+      });
+
+      if (!projectServices.length) {
+        return { items: [], count: 0, note: 'Project has no services' };
+      }
+
+      // helper-функции (локальные)
+      const resolvedProjectCats = (ps: {
+        service: { categories: { id: string }[] };
+        selectedCategories: { categoryId: string }[];
+      }) => {
+        const all = ps.service.categories.map(c => c.id);
+        const selected = ps.selectedCategories?.map(x => x.categoryId) ?? [];
+        return selected.length ? selected : all;
+      };
+      const resolvedContractorCats = (cs: {
+        service: { categories: { id: string }[] };
+        selectedCategories: { categoryId: string }[];
+      }) => {
+        const all = cs.service.categories.map(c => c.id);
+        const selected = cs.selectedCategories?.map(x => x.categoryId) ?? [];
+        return selected.length ? selected : all;
+      };
+      const intersect = (a: string[], b: string[]) => {
+        const sb = new Set(b);
+        return a.filter(x => sb.has(x));
+      };
+
+      const projectServiceIds = [...new Set(projectServices.map(s => s.service.id))];
+
+      // 3) Пул кандидатов: только те, у кого есть хотя бы одна из услуг проекта
+      const contractors = await this.prisma.contractor.findMany({
+        where: { services: { some: { serviceId: { in: projectServiceIds } } } },
+        select: {
+          id: true,
+          userId: true,
+          cityId: true,
+          companyName: true,
+          about: true,
+          user: { select: { id: true, name: true, avatarUrl: true, cityId: true } },
+          services: {
+            where: { serviceId: { in: projectServiceIds } },
+            select: {
+              service: {
+                select: {
+                  id: true, slug: true, name: true,
+                  categories: { select: { id: true } },
+                },
+              },
+              selectedCategories: { select: { categoryId: true } },
+            },
+          },
+        },
+        take: 1000, // верхняя отсечка; потом режем по score
+      });
+
+      // 4) Считаем score
+      const scored = contractors
+        .map(ctr => {
+          let score = 0;
+          const details: Array<{
+            serviceId: string;
+            serviceSlug?: string;
+            serviceName?: string;
+            projectCats: string[];
+            contractorCats: string[];
+            inter: string[];
+          }> = [];
+
+          for (const ps of projectServices) {
+            const cs = ctr.services.find(s => s.service.id === ps.service.id);
+            if (!cs) continue;
+
+            const pCats = resolvedProjectCats(ps);
+            const cCats = resolvedContractorCats(cs);
+            const inter = intersect(pCats, cCats);
+
+            const serviceWeight = 5; // вес за совпадение услуги
+            score += serviceWeight + inter.length;
+
+            details.push({
+              serviceId: ps.service.id,
+              serviceSlug: ps.service.slug,
+              serviceName: ps.service.name,
+              projectCats: pCats,
+              contractorCats: cCats,
+              inter,
+            });
+          }
+
+          if (opts?.sameCityBoost && project.cityId && ctr.cityId && project.cityId === ctr.cityId) {
+            score += 2;
+          }
+
+          return { ...ctr, matchScore: score, match: { services: details } };
+        })
+        .filter(x => x.matchScore > 0)
+        .sort((a, b) => b.matchScore - a.matchScore || (a.id > b.id ? 1 : -1));
+
+      const items = scored.slice(0, take);
+      return { items, count: scored.length };
+    } catch (e) {
+      // безопасный лог, чтобы сразу понять первопричину 500
+      // eslint-disable-next-line no-console
+      console.error('[recommendContractorsForProject] failed:', e);
+      // не оставляем “внутрянку” на фронт
+      return { items: [], count: 0, error: 'internal_error' };
+    }
   }
-  // 2) Исполнители для проекта (по категориям проекта)
-  async contractorsForProject(projectId: string, opts: { city?: string; take?: number }) {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      include: { categories: { select: { id: true } } },
+
+
+  // --------- 2) Проекты для исполнителя ---------
+  async recommendProjectsForContractor(contractorId: string, opts?: { take?: number; onlyOpen?: boolean; sameCityBoost?: boolean }) {
+    const take = Math.min(Math.max(opts?.take ?? 20, 1), 100);
+
+    // 1) грузим исполнителя + услуги с категориями
+    const contractor = await this.prisma.contractor.findUnique({
+      where: { id: contractorId },
+      select: {
+        id: true,
+        cityId: true,
+        services: {
+          select: {
+            service: { select: { id: true, slug: true, name: true, categories: { select: { id: true } } } },
+            selectedCategories: { select: { categoryId: true } },
+          },
+        },
+      },
     });
-    if (!project) throw new NotFoundException('Project not found');
+    if (!contractor) throw new NotFoundException('Contractor not found');
+    if (!contractor.services.length) return { items: [], count: 0 };
 
-    const categoryIds = project.categories.map(c => c.id);
-    if (categoryIds.length === 0) return { items: [], count: 0 };
+    const contractorServiceIds = this.uniq(contractor.services.map(s => s.service.id));
 
-    // кандидаты: у кого есть хотя бы одна из категорий (и опц. по городу пользователя)
-    const contractors = await this.prisma.contractor.findMany({
+    // 2) пул проектов с пересечением по услугам
+    const projects = await this.prisma.project.findMany({
       where: {
-        categories: { some: { id: { in: categoryIds } } },
-        ...(opts.city ? { user: { cityId: opts.city } } : {}),
+        ...(opts?.onlyOpen ? { status: 'OPEN' as any } : {}),
+        services: { some: { serviceId: { in: contractorServiceIds } } },
       },
-      include: {
-        user: { select: { id: true, name: true, cityId: true, avatarUrl: true } },
-        categories: { select: { id: true, name: true } },
-      },
-      take: Math.min(Math.max(opts.take || 20, 1), 100),
-    });
-
-    // посчитаем score = размер пересечения категорий
-    const set = new Set(categoryIds);
-    const scored = contractors
-      .map((c) => {
-        const inter = c.categories.filter(k => set.has(k.id)).length;
-        return { ...c, matchScore: inter };
-      })
-      .sort((a, b) => b.matchScore - a.matchScore);
-
-    return { items: scored, count: scored.length, projectId };
-  }
-
-  async homeProjects(params: HomeProjectsParams) {
-    const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
-
-    const where: Prisma.ProjectWhereInput = {
-      ...(params.status ? { status: params.status as any } : { status: 'OPEN' as any }),
-      ...(params.cityId ? { cityId: params.cityId } : {}),
-    };
-
-    const items = await this.prisma.project.findMany({
-      where,
-      take,
-      ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
-      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         title: true,
@@ -199,69 +231,160 @@ export class RecommendationsService {
         createdAt: true,
         status: true,
         cityId: true,
-        city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
+        services: {
+          where: { serviceId: { in: contractorServiceIds } },
+          select: {
+            service: { select: { id: true, slug: true, name: true, categories: { select: { id: true } } } },
+            selectedCategories: { select: { categoryId: true } },
+          },
+        },
         coverAttachment: { select: { id: true, url: true } },
-        categories: { select: { id: true, name: true } },
-        client: { select: { id: true, name: true, avatarUrl: true, cityId: true } }, // без relation city, чтобы не ловить TS-ошибки
+        client: { select: { id: true, name: true, avatarUrl: true, cityId: true } },
       },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
     });
 
-    const nextCursor = items.length === take ? items[items.length - 1].id : null;
+    // 3) score
+    const scored: ScoreRow<typeof projects[number]>[] = projects.map((p) => {
+      let score = 0;
+      const perService: ScoreRow<any>['match']['services'] = [];
 
-    return { items, nextCursor };
+      for (const cs of contractor.services) {
+        const pLinksSameService = p.services.filter(ps => ps.service.id === cs.service.id);
+        if (!pLinksSameService.length) continue;
+
+        const ps = pLinksSameService[0];
+
+        const pCats = this.resolvedProjectCats(ps);
+        const cCats = this.resolvedContractorCats(cs);
+        const inter = this.intersect(pCats, cCats);
+
+        const serviceWeight = 5;
+        score += serviceWeight + inter.length;
+
+        perService.push({
+          serviceId: cs.service.id,
+          serviceSlug: cs.service.slug,
+          serviceName: cs.service.name,
+          projectCats: pCats,
+          contractorCats: cCats,
+          inter,
+        });
+      }
+
+      if (opts?.sameCityBoost && p.cityId && contractor.cityId && p.cityId === contractor.cityId) {
+        score += 2;
+      }
+
+      return { ...p, matchScore: score, match: { services: perService } };
+    })
+      .filter(x => x.matchScore > 0)
+      .sort((a, b) => b.matchScore - a.matchScore || (a.id > b.id ? 1 : -1));
+
+    const items = scored.slice(0, take);
+    return { items, count: scored.length };
   }
 
-  async recommendContractorsForClient(clientUserId: string, params: RecommendContractorsForClientParams = {}) {
-    const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
-    const excludeSelf = params.excludeSelf !== false;
+  // --------- 3) Для клиента (агрегация по всем его проектам) ---------
+  async recommendContractorsForClient(userId: string, opts?: { take?: number; sameCityBoost?: boolean }) {
+    const take = Math.min(Math.max(opts?.take ?? 20, 1), 100);
 
-    // 1) Собираем все категории из проектов клиента
+    // берём все услуги/категории из ВСЕХ проектов клиента
     const projects = await this.prisma.project.findMany({
-      where: { clientId: clientUserId },
-      select: { categories: { select: { id: true } } },
+      where: { clientId: userId },
+      select: {
+        id: true,
+        cityId: true,
+        services: {
+          select: {
+            service: { select: { id: true, slug: true, name: true, categories: { select: { id: true } } } },
+            selectedCategories: { select: { categoryId: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100, // ограничим для производительности
     });
 
-    const categoryIds = Array.from(
-      new Set(projects.flatMap((p) => p.categories.map((c) => c.id)))
-    );
+    if (!projects.length) return { items: [], count: 0 };
 
-    if (categoryIds.length === 0) {
-      return { items: [], count: 0, categoryIds: [], note: 'У клиента нет проектов с категориями' };
+    // Собираем уникальные услуги и “разрешённые” по ним категории (объединение по проектам)
+    const byService = new Map<
+      string,
+      { serviceId: string; categoryIds: Set<string> }
+    >();
+
+    for (const p of projects) {
+      for (const ps of p.services) {
+        const all = ps.service.categories.map(c => c.id);
+        const selected = ps.selectedCategories?.map(x => x.categoryId) ?? [];
+        const use = (selected.length ? selected : all);
+
+        if (!byService.has(ps.service.id)) {
+          byService.set(ps.service.id, { serviceId: ps.service.id, categoryIds: new Set(use) });
+        } else {
+          const agg = byService.get(ps.service.id)!;
+          use.forEach(id => agg.categoryIds.add(id));
+        }
+      }
     }
 
-    // 2) Ищем исполнителей, у которых есть пересечение по категориям (+ optional фильтр по городу)
-    const contractors = await this.prisma.contractor.findMany({
-      where: {
-        ...(params.cityId ? { cityId: params.cityId } : {}),
-        categories: { some: { id: { in: categoryIds } } },
-        ...(excludeSelf ? { userId: { not: clientUserId } } : {}),
-      },
+    const serviceIds = [...byService.keys()];
+    if (!serviceIds.length) return { items: [], count: 0 };
+
+    // пул: все исполнители, у кого есть хотя бы одна нужная услуга
+    const pool = await this.prisma.contractor.findMany({
+      where: { services: { some: { serviceId: { in: serviceIds } } } },
       select: {
         id: true,
         userId: true,
         cityId: true,
         companyName: true,
         about: true,
-        categories: { select: { id: true } }, // обязательно, чтобы посчитать score
         user: { select: { id: true, name: true, avatarUrl: true, cityId: true } },
-        city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
+        services: {
+          where: { serviceId: { in: serviceIds } },
+          select: {
+            service: { select: { id: true, slug: true, name: true, categories: { select: { id: true } } } },
+            selectedCategories: { select: { categoryId: true } },
+          },
+        },
       },
-      // Порядок пока не по score (посчитаем ниже), чтобы не городить сложную пагинацию
-      take: 1000, // верхний лимит на входной пул (если база большая — уменьши)
+      take: 1000,
     });
 
-    // 3) Считаем matchScore = размер пересечения категорий
-    const set = new Set(categoryIds);
-    const scored = contractors
-      .map((c) => {
-        const inter = c.categories.filter((k) => set.has(k.id)).map((k) => k.id);
-        return { ...c, matchScore: inter.length, matchCategories: inter };
-      })
-      .filter((c) => c.matchScore > 0)
+    // simple score
+    const scored = pool.map((ctr) => {
+      let score = 0;
+      const perService: any[] = [];
+
+      for (const cs of ctr.services) {
+        const allowed = byService.get(cs.service.id);
+        if (!allowed) continue;
+
+        const cCats = this.resolvedContractorCats(cs);
+        const inter = this.intersect([...allowed.categoryIds], cCats);
+
+        const serviceWeight = 5;
+        score += serviceWeight + inter.length;
+
+        perService.push({
+          serviceId: cs.service.id,
+          serviceSlug: cs.service.slug,
+          serviceName: cs.service.name,
+          projectCats: [...allowed.categoryIds],
+          contractorCats: cCats,
+          inter,
+        });
+      }
+
+      return { ...ctr, matchScore: score, match: { services: perService } };
+    })
+      .filter(x => x.matchScore > 0)
       .sort((a, b) => b.matchScore - a.matchScore || (a.id > b.id ? 1 : -1));
 
-    // 4) Результат (топ-N)
     const items = scored.slice(0, take);
-    return { items, count: scored.length, categoryIds };
+    return { items, count: scored.length };
   }
 }

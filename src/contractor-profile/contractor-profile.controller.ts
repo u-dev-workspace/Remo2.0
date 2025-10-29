@@ -1,8 +1,22 @@
-import { Controller, Get, Patch, Delete, Body, Req, UseGuards, Post, Param } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  Body,
+  Req,
+  UseGuards,
+  Post,
+  Param,
+  Put,
+  ValidationPipe,
+  BadRequestException,
+} from '@nestjs/common';
 import { ContractorProfileService } from './contractor-profile.service';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { AddCategoriesDto, UpdateContractorDto } from './dto/update-contractor.dto';
+import { UpdateContractorDto } from './dto/update-contractor.dto';
+import { ContractorServiceInput } from './dto/contractor-service-input.dto';
 @ApiTags('Contractor Profile') // ← появится группа в Swagger
 @ApiBearerAuth('bearerAuth')
 @Controller('api/v1/contractor-profile')
@@ -31,24 +45,38 @@ export class ContractorProfileController {
     return this.contractorProfileService.updateProfile(userId, data);
   }
 
-  @Post('me/categories')
-  @ApiOperation({ summary: 'Добавить категории исполнителю (без удаления существующих)' })
-  // @UseGuards(JwtAuthGuard)
-  async addCategories(@Req() req: any, @Body() body: AddCategoriesDto) {
-    const userId = req.user.id;
-    return this.contractorProfileService.addCategories(userId, body);
-  }
+  // @Post('me/categories')
+  // @ApiOperation({ summary: 'Добавить категории исполнителю (без удаления существующих)' })
+  // // @UseGuards(JwtAuthGuard)
+  // async addCategories(@Req() req: any, @Body() body: AddCategoriesDto) {
+  //   const userId = req.user.id;
+  //   return this.contractorProfileService.addCategories(userId, body);
+  // }
 
-  @Delete('me/categories/:categoryId')
-  @ApiOperation({ summary: 'Удалить одну категорию у исполнителя' })
-  // @UseGuards(JwtAuthGuard)
-  async removeCategory(@Req() req: any, @Param('categoryId') categoryId: string) {
-    const userId = req.user.id;
-    return this.contractorProfileService.removeCategory(userId, categoryId);
-  }
+  // @Delete('me/categories/:categoryId')
+  // @ApiOperation({ summary: 'Удалить одну категорию у исполнителя' })
+  // // @UseGuards(JwtAuthGuard)
+  // async removeCategory(@Req() req: any, @Param('categoryId') categoryId: string) {
+  //   const userId = req.user.id;
+  //   return this.contractorProfileService.removeCategory(userId, categoryId);
+  // }
   @Delete('me')
   async deleteProfile(@Req() req) {
     const userId = req.user?.id;
     return this.contractorProfileService.deleteProfile(userId);
   }
+
+  @UseGuards(JwtGuard)
+  @Put(':contractorId/services')
+  async setServices(
+    @Param('contractorId') contractorId: string,
+    @Body(new ValidationPipe({ transform: true, whitelist: true })) body: { services: ContractorServiceInput[] },
+    @Req() req: any,
+  ) {
+    if (!body?.services || !Array.isArray(body.services)) {
+      throw new BadRequestException('Body must have "services": ContractorServiceInput[]');
+    }
+    return this.contractorProfileService.setServices(contractorId, body.services, req.user?.id);
+  }
+
 }

@@ -1,9 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray, ArrayUnique, IsNotEmpty, IsOptional, IsString,
-  IsEnum, IsNumber, IsInt, Min,
+  IsEnum, IsNumber, IsInt, Min, ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { ProjectServiceInput } from './project-service-input.dto';
 
 // Если в Prisma у тебя есть enum PremisesType — оставь этот enum в DTO.
 // (В Prisma-клиенте он будет как $Enums.PremisesType, но для валидации удобнее свой TS-enum.)
@@ -67,4 +68,14 @@ export class CreateProjectDto {
   @IsInt()
   @Min(0)
   budgetEstimated?: number;
+
+  @ApiPropertyOptional({
+    description: 'Набор услуг для проекта c (опционально) выбранными категориями внутри каждой услуги',
+    type: [ProjectServiceInput],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProjectServiceInput)
+  services?: ProjectServiceInput[];
 }

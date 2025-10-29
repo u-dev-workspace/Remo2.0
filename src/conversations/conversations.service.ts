@@ -196,7 +196,9 @@ export class ConversationsService {
                 contractor: {
                     select: {
                         id: true;
-                        user: { select: { id: true; name: true; avatarUrl: true } };
+
+                        user: { select: { id: true; name: true; avatarUrl: true }
+                        };
                     };
                 };
                 messages: {
@@ -227,6 +229,7 @@ export class ConversationsService {
                 contractor: {
                     select: {
                         id: true,
+                        companyName: true,
                         user: { select: { id: true, name: true, avatarUrl: true } },
                     },
                 },

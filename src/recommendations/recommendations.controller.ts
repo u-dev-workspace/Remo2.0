@@ -1,5 +1,15 @@
-import { Controller, Get, Param, Query, Req, UnauthorizedException, UseGuards, ValidationPipe } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { RecommendationsService } from './recommendations.service';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtGuard } from '../common/guards/jwt.guard';
@@ -17,70 +27,52 @@ export class RecommendationsController {
   constructor(private readonly service: RecommendationsService) {}
 
   // 1) Проекты для исполнителя (me) по категориям
-  @Get('me/projects')
-  @ApiOperation({ summary: 'Рекомендации проектов для исполнителя по его категориям' })
 
-  @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'city', required: false })
-  @ApiQuery({ name: 'take', required: false })
-  @ApiQuery({ name: 'cursor', required: false })
-  async projectsForContractorMe(
-    @Req() req: any,
-    @Query('status') status?: string,
-    @Query('cityId') cityId?: string,
-    @Query('take') take = '20',
-    @Query('cursor') cursor?: string,
-  ) {
-    const userId = req.user?.id ?? req.user?.sub;
-    if (!userId) throw new UnauthorizedException('No authenticated user');
-    return this.service.projectsForContractor(userId, {
-      status,
-      cityId,
-      take: Number(take) || 20,
-      cursor,
-    });
-  }
-
-  // 2) Исполнители для проекта по категориям проекта
-  @Get('projects/:projectId/contractors')
-  @ApiOperation({ summary: 'Рекомендованные исполнители для проекта по категориям проекта' })
-  @ApiQuery({ name: 'city', required: false })
-  @ApiQuery({ name: 'take', required: false, description: 'Кол-во (по умолчанию 20)' })
-  async contractorsForProject(
+  // 1) Исполнители для конкретного проекта
+  @Get('contractors/by-project/:projectId')
+  @ApiOkResponse({ description: 'Список исполнителей, отсортированных по matchScore' })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async contractorsByProject(
     @Param('projectId') projectId: string,
-    @Query('city') city?: string,
-    @Query('take') take = '20',
+    @Query('take') take?: string,
+    @Query('sameCityBoost') sameCityBoost?: string, // 'true' | 'false'
   ) {
-    return this.service.contractorsForProject(projectId, { city, take: Number(take) || 20 });
-  }
-
-  @Get('projects/home')
-  async homeProjects(
-    @Query(new ValidationPipe({ transform: true, whitelist: true }))
-      query: { take?: number; cursor?: string; cityId?: string; status?: 'OPEN' | 'IN_TALK' | 'CLOSED' | 'ARCHIVED' },
-  ) {
-    const take = Number.isFinite(Number(query.take)) ? Number(query.take) : 20;
-    return this.service.homeProjects({
-      take,
-      cursor: query.cursor,
-      cityId: query.cityId,
-      status: query.status,
+    return this.service.recommendContractorsForProject(projectId, {
+      take: Number.isFinite(Number(take)) ? Number(take) : 20,
+      sameCityBoost: sameCityBoost !== 'false',
     });
   }
 
-  @UseGuards(JwtGuard)
-  @Get('contractors/for-client')
-  async recommendForClient(
-    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: RecommendForClientQueryDto,
-    @Req() req: any,
+  // 2) Проекты для конкретного исполнителя
+  @Get('projects/by-contractor/:contractorId')
+  @ApiOkResponse({ description: 'Список проектов, отсортированных по matchScore' })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async projectsByContractor(
+    @Param('contractorId') contractorId: string,
+    @Query('take') take?: string,
+    @Query('onlyOpen') onlyOpen?: string,
+    @Query('sameCityBoost') sameCityBoost?: string,
   ) {
-    const take = Number.isFinite(Number(query.take)) ? Number(query.take) : 20;
-    const excludeSelf = query.excludeSelf === 'false' ? false : true;
+    return this.service.recommendProjectsForContractor(contractorId, {
+      take: Number.isFinite(Number(take)) ? Number(take) : 20,
+      onlyOpen: onlyOpen !== 'false',
+      sameCityBoost: sameCityBoost !== 'false',
+    });
+  }
 
-    return this.service.recommendContractorsForClient(req.user?.id, {
-      take,
-      cityId: query.cityId,
-      excludeSelf,
+  // 3) Исполнители для клиента (агрегируем все его проекты)
+  @Get('contractors/for-client')
+  @ApiOkResponse({ description: 'Исполнители для клиента по услугам всех его проектов' })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async contractorsForClient(
+    @Req() req: any,
+    @Query('take') take?: string,
+    @Query('sameCityBoost') sameCityBoost?: string,
+  ) {
+    const userId = req.user?.id;
+    return this.service.recommendContractorsForClient(userId, {
+      take: Number.isFinite(Number(take)) ? Number(take) : 20,
+      sameCityBoost: sameCityBoost !== 'false',
     });
   }
 }

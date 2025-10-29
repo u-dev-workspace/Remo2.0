@@ -1,5 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsArray, ArrayUnique } from 'class-validator';
+import { IsOptional, IsString, IsArray, ArrayUnique, ValidateNested } from 'class-validator';
+import { ProjectServiceInput } from '../../projects/dto/project-service-input.dto';
+import { Type } from 'class-transformer';
+import { ContractorServiceInput } from './contractor-service-input.dto';
 
 export class UpdateContractorDto {
   @ApiPropertyOptional()
@@ -18,11 +21,16 @@ export class UpdateContractorDto {
   @IsArray()
   @ArrayUnique()
   categoryIds?: string[];
-}
 
-export class AddCategoriesDto {
-  @ApiPropertyOptional({ type: [String], description: 'Категории для добавления' })
+
+  @ApiPropertyOptional({
+    description: 'Набор услуг для исполнителя c (опционально) выбранными категориями внутри каждой услуги',
+    type: [ProjectServiceInput],
+  })
+  @IsOptional()
   @IsArray()
-  @ArrayUnique()
-  categoryIds: string[];
+  @ValidateNested({ each: true })
+  @Type(() => ContractorServiceInput)
+  services?: ContractorServiceInput[];
+
 }
