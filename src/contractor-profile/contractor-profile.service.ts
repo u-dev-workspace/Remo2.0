@@ -14,7 +14,8 @@ export class ContractorProfileService {
     const contractor = await this.prisma.contractor.findUnique({
       where: { userId },
       include: {
-        categories: true,
+        city:true,
+        services:true,
       },
     });
     console.log('contractor =>', contractor);

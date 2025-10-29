@@ -4,75 +4,63 @@ import {
   Param,
   Query,
   Req,
-  UnauthorizedException,
   UseGuards,
   UsePipes,
   ValidationPipe,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { RecommendationsService } from './recommendations.service';
-import { AuthGuard } from '@nestjs/passport';
 import { JwtGuard } from '../common/guards/jwt.guard';
-// import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-class RecommendForClientQueryDto {
-  take?: number;
-  cityId?: string;
-  excludeSelf?: string; // 'true' | 'false'
-}
+
 @ApiTags('Recommendations')
-@ApiBearerAuth('bearerAuth')
 @Controller('recommendations')
+@ApiBearerAuth('bearerAuth')
 @UseGuards(JwtGuard)
+@UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class RecommendationsController {
   constructor(private readonly service: RecommendationsService) {}
 
-  // 1) Проекты для исполнителя (me) по категориям
-
-  // 1) Исполнители для конкретного проекта
   @Get('contractors/by-project/:projectId')
-  @ApiOkResponse({ description: 'Список исполнителей, отсортированных по matchScore' })
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @ApiOperation({ summary: 'Рекомендовать исполнителей по услугам проекта' })
+  @ApiOkResponse({ description: 'Список исполнителей (matchScore убыв.)' })
+  @ApiQuery({ name: 'take', required: false, description: '1..100, по умолчанию 20' })
   async contractorsByProject(
     @Param('projectId') projectId: string,
     @Query('take') take?: string,
-    @Query('sameCityBoost') sameCityBoost?: string, // 'true' | 'false'
   ) {
     return this.service.recommendContractorsForProject(projectId, {
       take: Number.isFinite(Number(take)) ? Number(take) : 20,
-      sameCityBoost: sameCityBoost !== 'false',
     });
   }
 
-  // 2) Проекты для конкретного исполнителя
-  @Get('projects/by-contractor/:contractorId')
-  @ApiOkResponse({ description: 'Список проектов, отсортированных по matchScore' })
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @Get('projects/by-contractor')
+  @ApiOperation({ summary: 'Рекомендовать проекты по услугам исполнителя' })
+  @ApiOkResponse({ description: 'Список проектов (matchScore убыв.)' })
+  @ApiQuery({ name: 'take', required: false })
+  @ApiQuery({ name: 'onlyOpen', required: false, description: 'true (по умолчанию) | false' })
   async projectsByContractor(
-    @Param('contractorId') contractorId: string,
+    @Req() req,
     @Query('take') take?: string,
     @Query('onlyOpen') onlyOpen?: string,
-    @Query('sameCityBoost') sameCityBoost?: string,
   ) {
-    return this.service.recommendProjectsForContractor(contractorId, {
+    return this.service.recommendProjectsForContractor(req.user?.id, {
       take: Number.isFinite(Number(take)) ? Number(take) : 20,
       onlyOpen: onlyOpen !== 'false',
-      sameCityBoost: sameCityBoost !== 'false',
     });
   }
 
-  // 3) Исполнители для клиента (агрегируем все его проекты)
   @Get('contractors/for-client')
-  @ApiOkResponse({ description: 'Исполнители для клиента по услугам всех его проектов' })
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async contractorsForClient(
-    @Req() req: any,
-    @Query('take') take?: string,
-    @Query('sameCityBoost') sameCityBoost?: string,
-  ) {
-    const userId = req.user?.id;
+  @ApiOperation({ summary: 'Исполнители для текущего клиента по услугам всех его проектов' })
+  @ApiOkResponse({ description: 'Список исполнителей (matchScore убыв.)' })
+  @ApiBearerAuth()
+  @UseGuards(JwtGuard)
+  @ApiQuery({ name: 'take', required: false })
+  async contractorsForClient(@Req() req: any, @Query('take') take?: string) {
+    const userId: string | undefined = req.user?.id;
+    if (!userId) throw new UnauthorizedException('Auth required');
     return this.service.recommendContractorsForClient(userId, {
       take: Number.isFinite(Number(take)) ? Number(take) : 20,
-      sameCityBoost: sameCityBoost !== 'false',
     });
   }
 }

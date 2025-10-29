@@ -6,7 +6,6 @@ import {
   Body,
   Req,
   UseGuards,
-  Post,
   Param,
   Put,
   ValidationPipe,
@@ -14,9 +13,10 @@ import {
 } from '@nestjs/common';
 import { ContractorProfileService } from './contractor-profile.service';
 import { JwtGuard } from '../common/guards/jwt.guard';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { ContractorServiceInput } from './dto/contractor-service-input.dto';
+import { SetContractorServicesDto } from './dto/set-contractor-services.dto';
 @ApiTags('Contractor Profile') // ← появится группа в Swagger
 @ApiBearerAuth('bearerAuth')
 @Controller('api/v1/contractor-profile')
@@ -68,15 +68,17 @@ export class ContractorProfileController {
 
   @UseGuards(JwtGuard)
   @Put(':contractorId/services')
+  @ApiOperation({ summary: 'Полная замена перечня услуг исполнителя и их выбранных категорий' })
+  @ApiOkResponse({ description: 'Профиль исполнителя с актуальными услугами' })
+  @ApiBody({ type: SetContractorServicesDto })
   async setServices(
     @Param('contractorId') contractorId: string,
-    @Body(new ValidationPipe({ transform: true, whitelist: true })) body: { services: ContractorServiceInput[] },
+    @Body(new ValidationPipe({ transform: true, whitelist: true })) body: SetContractorServicesDto,
     @Req() req: any,
   ) {
-    if (!body?.services || !Array.isArray(body.services)) {
-      throw new BadRequestException('Body must have "services": ContractorServiceInput[]');
+    if (!body?.services?.length) {
+      throw new BadRequestException('Body must have non-empty "services" array');
     }
     return this.contractorProfileService.setServices(contractorId, body.services, req.user?.id);
   }
-
 }
