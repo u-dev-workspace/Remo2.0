@@ -15,7 +15,7 @@ export class ContractorProfileService {
       where: { userId },
       include: {
         city:true,
-        services:true,
+        services: {select: { serviceId:true, service:{select: {name:true}}, selectedCategories:true}},
       },
     });
     console.log('contractor =>', contractor);
@@ -32,6 +32,7 @@ export class ContractorProfileService {
         categories: true,
         ContractorAttachment: { take: 3 },
         city: true,
+        services: {select: { serviceId:true, service:{select: {name:true}}, selectedCategories:true}}
       },
     });
     console.log('contractor =>', contractor);
@@ -43,6 +44,9 @@ export class ContractorProfileService {
   private async getByUserIdOrThrow(userId: string) {
     const contractor = await this.prisma.contractor.findUnique({
       where: { userId },
+      include: {
+        services:true
+      }
     });
     if (!contractor) throw new NotFoundException('Profile not found');
     return contractor;
