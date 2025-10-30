@@ -91,7 +91,8 @@ model Contractor {
   conversations        Conversation[]
   ContractorAttachment ContractorAttachment[]
 
-  services ContractorService[] // ← связи "исполнитель ↔ услуга"
+  services                ContractorService[] // ← связи "исполнитель ↔ услуга"
+  ContractorShowcaseImage ContractorShowcaseImage[]
 
   @@index([cityId])
 }
@@ -180,11 +181,12 @@ model Project {
   categories   Category[]     @relation("ProjectCategories")
   Conversation Conversation[]
 
-  propertyType    PremisesType?
-  area            Float? // площадь (кв. м)
-  budgetEstimated Int? // предполагаемый бюджет (например, KZT)
-  cityId          String?
-  city            City?         @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  propertyType         PremisesType?
+  area                 Float? // площадь (кв. м)
+  budgetEstimated      Int? // предполагаемый бюджет (например, KZT)
+  cityId               String?
+  city                 City?                  @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  ProjectShowcaseImage ProjectShowcaseImage[]
 
   @@index([clientId])
   @@index([propertyType])
@@ -230,7 +232,9 @@ model Attachment {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
-  coverOf Project[] @relation("ProjectCover")
+  coverOf                 Project[]                 @relation("ProjectCover")
+  ProjectShowcaseImage    ProjectShowcaseImage[]
+  ContractorShowcaseImage ContractorShowcaseImage[]
 
   @@index([projectId, sortOrder])
 }
@@ -299,4 +303,30 @@ model Subscription {
 
   @@index([userId])
   @@index([isActive, expiresAt])
+}
+
+model ProjectShowcaseImage {
+  id           String @id @default(cuid())
+  projectId    String
+  attachmentId String
+  position     Int
+
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  attachment Attachment @relation(fields: [attachmentId], references: [id])
+
+  @@unique([projectId, position])
+  @@unique([projectId, attachmentId])
+}
+
+model ContractorShowcaseImage {
+  id           String @id @default(cuid())
+  contractorId String
+  attachmentId String
+  position     Int
+
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  attachment Attachment @relation(fields: [attachmentId], references: [id])
+
+  @@unique([contractorId, position])
+  @@unique([contractorId, attachmentId])
 }

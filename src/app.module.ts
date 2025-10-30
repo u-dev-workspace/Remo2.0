@@ -17,6 +17,7 @@ import { RecommendationsModule } from './recommendations/recommendations.module'
 import { UserModule } from './user/user.module';
 import { SearchModule } from './search/search.module';
 import { ServicesModule } from './services/services.module';
+import { ShowcaseModule } from './showcase/showcase.module';
 
 
 @Module({
@@ -35,6 +36,7 @@ import { ServicesModule } from './services/services.module';
         UserModule,
         SearchModule,
         ServicesModule,
+        ShowcaseModule,
         EventEmitterModule.forRoot(),
     ],
     providers: [
