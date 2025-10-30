@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { take } from 'rxjs';
 import { ContractorServiceInput } from './dto/contractor-service-input.dto';
+import { use } from 'passport';
 
 @Injectable()
 export class ContractorProfileService {
@@ -75,10 +76,26 @@ export class ContractorProfileService {
       categoriesUpdate = { set: ids.map((id) => ({ id })) };
     }
 
+    const contractorId = this.prisma.contractor.findUnique(
+      {
+        where:{
+          userId:userId
+        }
+      }
+    )
+
+    await this.setServices(
+      data?.contractorId ?? "",
+      data?.services ?? [],
+      userId,
+    );
+
+
     return this.prisma.contractor.update({
       where: { userId },
       data: {
         companyName: data.companyName,
+
         about: data.about,
         ...(categoriesUpdate ? { categories: categoriesUpdate } : {}),
       },
@@ -165,21 +182,20 @@ export class ContractorProfileService {
     return subset;
   }
 
+  // service
   async setServices(
     contractorId: string,
     inputs: ContractorServiceInput[],
     currentUserId?: string,
   ) {
-    // проверка владельца, если нужно
+    // проверка владельца
     const contractor = await this.prisma.contractor.findUnique({
       where: { id: contractorId },
       select: { id: true, userId: true },
     });
     if (!contractor) throw new NotFoundException('Contractor not found');
     if (currentUserId && contractor.userId !== currentUserId) {
-      throw new ForbiddenException(
-        'You are not the owner of this contractor profile',
-      );
+      throw new ForbiddenException('You are not the owner of this contractor profile');
     }
 
     // валидация дубликатов
@@ -188,7 +204,6 @@ export class ContractorProfileService {
       throw new BadRequestException('Duplicate serviceId in services array');
     }
 
-    // разрулим категории
     const selections = await Promise.all(
       inputs.map(async (s) => ({
         serviceId: s.serviceId,
@@ -200,11 +215,11 @@ export class ContractorProfileService {
     );
 
     return this.prisma.$transaction(async (tx) => {
-      // удаляем старые связки
       const oldLinks = await tx.contractorService.findMany({
         where: { contractorId },
         select: { id: true },
       });
+
       if (oldLinks.length) {
         await tx.contractorServiceSelectedCategory.deleteMany({
           where: { contractorServiceId: { in: oldLinks.map((l) => l.id) } },
@@ -212,12 +227,12 @@ export class ContractorProfileService {
         await tx.contractorService.deleteMany({ where: { contractorId } });
       }
 
-      // создаём новые
       for (const s of selections) {
         const link = await tx.contractorService.create({
           data: { contractorId, serviceId: s.serviceId },
           select: { id: true },
         });
+
         if (s.categoryIds.length) {
           await tx.contractorServiceSelectedCategory.createMany({
             data: s.categoryIds.map((cid) => ({
@@ -228,10 +243,6 @@ export class ContractorProfileService {
           });
         }
       }
-
-      // можно (опционально) синхронизировать Contractor.categories как объединение — если это нужно:
-      // const unionCategories = this.union(selections.map(s => s.categoryIds));
-      // await tx.contractor.update({ where: { id: contractorId }, data: { categories: { set: unionCategories.map(id => ({ id })) } } });
 
       return tx.contractor.findUnique({
         where: { id: contractorId },
@@ -251,4 +262,5 @@ export class ContractorProfileService {
       });
     });
   }
+
 }
