@@ -15,7 +15,7 @@ export class ContractorProfileService {
       where: { userId },
       include: {
         city:true,
-        services: {select: { serviceId:true, service:{select: {name:true}}, selectedCategories:true}},
+        services: {select: { serviceId:true, service:{select: {name:true}}, selectedCategories:{select:{category:{select:{name:true}}}}}},
       },
     });
     console.log('contractor =>', contractor);
