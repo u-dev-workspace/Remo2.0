@@ -28,11 +28,24 @@ const cities: CityRow[] = [
   { slug: 'oskemen',    nameRu: 'Усть-Каменогорск', nameKk: 'Өскемен', nameEn: 'Oskemen' },
   { slug: 'ridder',     nameRu: 'Риддер',      nameKk: 'Риддер',      nameEn: 'Ridder' },
   { slug: 'zhanaozen',  nameRu: 'Жанаозен',    nameKk: 'Жаңаөзен',    nameEn: 'Zhanaozen' },
-  { slug: 'kynar',      nameRu: 'Кентау',      nameKk: 'Кентау',      nameEn: 'Kentau' },
-  // при желании дополни остальными городами
+  { slug: 'kentau',     nameRu: 'Кентау',      nameKk: 'Кентау',      nameEn: 'Kentau' }, // ← фикс
 ];
 
-async function main() {
+// 10 строительных категорий
+const categories = [
+  'Фундамент и железобетонные работы',
+  'Каменные и кладочные работы',
+  'Монолитные и бетонные работы',
+  'Кровельные работы и гидроизоляция',
+  'Окна, фасады и витражи',
+  'Отделочные работы (черновая и чистовая)',
+  'Инженерные сети: отопление и вентиляция (HVAC)',
+  'Электромонтаж и слаботочные системы',
+  'Водоснабжение и канализация',
+  'Благоустройство и ландшафт',
+];
+
+async function seedCities() {
   for (const c of cities) {
     await prisma.city.upsert({
       where: { slug: c.slug },
@@ -43,7 +56,21 @@ async function main() {
   console.log(`Seeded ${cities.length} cities`);
 }
 
+async function seedCategories() {
+  for (const name of categories) {
+    await prisma.category.upsert({
+      where: { name },      // name уникален по схеме
+      update: {},
+      create: { name },
+    });
+  }
+  console.log(`Seeded ${categories.length} categories`);
+}
 
+async function main() {
+  await seedCities();
+  await seedCategories();
+}
 
 main()
   .catch((e) => { console.error(e); process.exit(1); })

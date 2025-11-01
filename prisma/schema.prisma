@@ -240,15 +240,16 @@ model Attachment {
 }
 
 model ContractorAttachment {
-  id           String     @id @default(uuid())
-  contractorId String
-  filename     String
-  path         String
-  mimetype     String?
-  size         Int?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  Contractor   Contractor @relation(fields: [contractorId], references: [id])
+  id                      String                    @id @default(uuid())
+  contractorId            String
+  filename                String
+  path                    String
+  mimetype                String?
+  size                    Int?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  Contractor              Contractor                @relation(fields: [contractorId], references: [id])
+  ContractorShowcaseImage ContractorShowcaseImage[]
 }
 
 model Conversation {
@@ -319,14 +320,16 @@ model ProjectShowcaseImage {
 }
 
 model ContractorShowcaseImage {
-  id           String @id @default(cuid())
-  contractorId String
-  attachmentId String
-  position     Int
+  id                     String @id @default(cuid())
+  contractorId           String
+  contractorAttachmentId String // было: attachmentId
+  position               Int
 
-  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
-  attachment Attachment @relation(fields: [attachmentId], references: [id])
+  contractor           Contractor           @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  contractorAttachment ContractorAttachment @relation(fields: [contractorAttachmentId], references: [id])
+  Attachment           Attachment?          @relation(fields: [attachmentId], references: [id])
+  attachmentId         String?
 
   @@unique([contractorId, position])
-  @@unique([contractorId, attachmentId])
+  @@unique([contractorId, contractorAttachmentId])
 }
