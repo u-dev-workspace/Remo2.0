@@ -18,6 +18,7 @@ import { UserModule } from './user/user.module';
 import { SearchModule } from './search/search.module';
 import { ServicesModule } from './services/services.module';
 import { ShowcaseModule } from './showcase/showcase.module';
+import { FavoritesModule } from './favorites/favorites.module';
 
 
 @Module({
@@ -37,6 +38,7 @@ import { ShowcaseModule } from './showcase/showcase.module';
         SearchModule,
         ServicesModule,
         ShowcaseModule,
+        FavoritesModule,
         EventEmitterModule.forRoot(),
     ],
     providers: [

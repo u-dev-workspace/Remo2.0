@@ -74,6 +74,7 @@ model User {
   Subscription Subscription[]
   City         City?          @relation(fields: [cityId], references: [id])
   cityId       String?
+  favorite     Favorite[]
 }
 
 model Contractor {
@@ -187,6 +188,7 @@ model Project {
   cityId               String?
   city                 City?                  @relation(fields: [cityId], references: [id], onDelete: SetNull)
   ProjectShowcaseImage ProjectShowcaseImage[]
+  favorite             Favorite[]
 
   @@index([clientId])
   @@index([propertyType])
@@ -332,4 +334,17 @@ model ContractorShowcaseImage {
 
   @@unique([contractorId, position])
   @@unique([contractorId, contractorAttachmentId])
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId], name: "uniq_favorite_user_project")
+  @@index([userId, createdAt])
 }
