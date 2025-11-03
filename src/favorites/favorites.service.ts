@@ -1,7 +1,9 @@
 // src/favorites/favorites.service.ts
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException,ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AddFavoriteDto } from './dto/add-favorite';
+
+
 import { ListFavoritesDto } from './dto/list-favorites';
 import { Prisma } from '@prisma/client';
 const contractorInclude = {
@@ -401,6 +403,9 @@ export class FavoritesService {
       id: result.count ? contractorId : null,
     };
   }
+
+
+
 
 
 

@@ -66,4 +66,10 @@ export class ConversationsController {
         const take = Number.isFinite(Number(query.take)) ? Number(query.take) : 50;
         return this.service.listMessagesTimeline(conversationId, req.user?.id, take, query.cursor);
     }
+
+    @Get('unread/count')
+    async getUnreadCount(@Req() req: Request) {
+        return this.service.getUnreadCountForUser((req as any).user?.id);
+    }
+
 }

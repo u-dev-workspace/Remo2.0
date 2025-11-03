@@ -61,4 +61,6 @@ export class FavoritesController {
     const userId = user?.id ?? user?.sub ?? user?.userId;
     return this.favorites.listContractors(userId, query);
   }
+
+
 }

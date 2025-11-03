@@ -6,7 +6,8 @@ import { ChatGateway } from './chat.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { AuthModule } from '../auth/auth.module'; // <- должен экспортировать JwtModule/JwtService
+import { AuthModule } from '../auth/auth.module';
+
 
 @Module({
     imports: [

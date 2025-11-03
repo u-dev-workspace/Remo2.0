@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Conversation, Message, Prisma } from '@prisma/client';
@@ -310,5 +310,25 @@ export class ConversationsService {
         const nextCursor = items.length === _take ? items[items.length - 1].id : null;
 
         return { items, nextCursor };
+    }
+    async getUnreadCountForUser(userId: string | undefined) {
+        if (!userId) {
+            throw new BadRequestException('User not resolved from token');
+        }
+
+        const unread = await this.prisma.message.count({
+            where: {
+                readAt: null,              // ещё не прочитано
+                senderId: { not: userId }, // не считаем собственные сообщения
+                conversation: {
+                    OR: [
+                        { clientId: userId },               // я — клиент
+                        { contractor: { userId: userId } }, // я — исполнитель (по userId у Contractor)
+                    ],
+                },
+            },
+        });
+
+        return { unread };
     }
 }
