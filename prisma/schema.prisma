@@ -67,14 +67,15 @@ model User {
   // one-to-many: user -> messages (как «sender»)
   messages Message[] @relation("UserMessages")
 
-  plan         Plan           @default(FREE)
-  planUntil    DateTime?
-  isBanned     Boolean        @default(false)
-  Conversation Conversation[]
-  Subscription Subscription[]
-  City         City?          @relation(fields: [cityId], references: [id])
-  cityId       String?
-  favorite     Favorite[]
+  plan               Plan                 @default(FREE)
+  planUntil          DateTime?
+  isBanned           Boolean              @default(false)
+  Conversation       Conversation[]
+  Subscription       Subscription[]
+  City               City?                @relation(fields: [cityId], references: [id])
+  cityId             String?
+  favorite           Favorite[]
+  favoriteContractor FavoriteContractor[]
 }
 
 model Contractor {
@@ -94,6 +95,7 @@ model Contractor {
 
   services                ContractorService[] // ← связи "исполнитель ↔ услуга"
   ContractorShowcaseImage ContractorShowcaseImage[]
+  favorites               FavoriteContractor[]
 
   @@index([cityId])
 }
@@ -346,5 +348,18 @@ model Favorite {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, projectId], name: "uniq_favorite_user_project")
+  @@index([userId, createdAt])
+}
+
+model FavoriteContractor {
+  id           String   @id @default(cuid())
+  userId       String
+  contractorId String
+  createdAt    DateTime @default(now())
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, contractorId], name: "uniq_favorite_user_contractor")
   @@index([userId, createdAt])
 }

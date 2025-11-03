@@ -37,4 +37,28 @@ export class FavoritesController {
     const userId = user?.id ?? user?.sub ?? user?.userId;
     return this.favorites.list(userId, query);
   }
+
+  @Post("/contractor/:contractorId")
+  @ApiOperation({ summary: 'Добавить проект в избранное' })
+  async addContractor(@Param('contractorId') contractorId: string, @CurrentUser() user: any) {
+    // подстрой название поля: id | sub | userId
+    const userId = user?.id ?? user?.sub ?? user?.userId;
+    return this.favorites.addContractor(userId, contractorId);
+  }
+
+  @Delete('/contractor/:contractorId')
+  @ApiOperation({ summary: 'Удалить проект из избранного' })
+  async removeContractor(@Param('contractorId') contractorId: string, @CurrentUser() user: any) {
+    const userId = user?.id ?? user?.sub ?? user?.userId;
+    return this.favorites.removeContractor(userId, contractorId);
+  }
+
+  @Get("/contactors")
+  async listContractor(
+    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: ListFavoritesDto,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.sub ?? user?.userId;
+    return this.favorites.listContractors(userId, query);
+  }
 }

@@ -85,6 +85,10 @@ export class SearchService {
         city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
         user: { select: { id: true, name: true, avatarUrl: true } },
         companyName: true,
+        services: {
+          select:
+            { service: { select:{ name:true}},
+              selectedCategories:true}},
         about: true,
         // можно добавить count проектов/оценок, если есть
       },
