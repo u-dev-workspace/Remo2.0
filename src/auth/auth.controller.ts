@@ -28,6 +28,17 @@ export class AuthController {
         return this.auth.getPublicById(userId);
     }
 
+    @Get('contractors')
+    UnAuthConractorRec() {
+        return this.auth.getUnAuthConractorRec();
+    }
+
+    @Get('projects')
+    UnAuthProjectRec() {
+        return this.auth.getUnAuthProjectRec();
+    }
+
+
 
 
 

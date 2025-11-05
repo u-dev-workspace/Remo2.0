@@ -84,6 +84,18 @@ export class AuthService {
         const { passwordHash, ...safe } = user as any;
         return safe;
     }
+
+    async getUnAuthConractorRec(){
+        return await this.prisma.contractor.findMany({
+            take:4
+        })
+    }
+
+    async getUnAuthProjectRec(){
+        return await this.prisma.project.findMany({
+            take:4
+        })
+    }
     private async issueTokens(userId: string, role: string) {
         const access = await this.jwt.signAsync({ sub: userId, role }, { expiresIn: '15m' });
         const refresh = await this.jwt.signAsync({ sub: userId, role, typ: 'refresh' }, { expiresIn: '30d' });
