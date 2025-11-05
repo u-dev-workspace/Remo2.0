@@ -276,6 +276,9 @@ model Conversation {
 
   messages Message[]
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([projectId, clientId, contractorId])
   @@index([projectId])
   @@index([clientId])

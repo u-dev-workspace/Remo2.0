@@ -2,6 +2,8 @@ import { Injectable, ForbiddenException, NotFoundException, BadRequestException 
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Conversation, Message, Prisma } from '@prisma/client';
+
+import now = jest.now;
 type ListConversationsParams = {
     role?: 'client' | 'contractor';
     take?: number;
@@ -176,7 +178,6 @@ export class ConversationsService {
     async listMyConversations(userId: string, params: ListConversationsParams) {
         const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
 
-        // фильтр по роли
         const where: Prisma.ConversationWhereInput =
           params.role === 'client'
             ? { clientId: userId }
@@ -184,7 +185,6 @@ export class ConversationsService {
               ? { contractor: { userId } }
               : { OR: [{ clientId: userId }, { contractor: { userId } }] };
 
-        // ЯВНЫЙ select -> TS понимает, что есть messages
         type Row = Prisma.ConversationGetPayload<{
             select: {
                 id: true;
@@ -196,9 +196,7 @@ export class ConversationsService {
                 contractor: {
                     select: {
                         id: true;
-
-                        user: { select: { id: true; name: true; avatarUrl: true }
-                        };
+                        user: { select: { id: true; name: true; avatarUrl: true } };
                     };
                 };
                 messages: {
@@ -214,11 +212,11 @@ export class ConversationsService {
             };
         }>;
 
-        const items: Row[] = await this.prisma.conversation.findMany({
+        const rows: Row[] = await this.prisma.conversation.findMany({
             where,
             take,
-            orderBy: { id: 'desc' }, // при наличии updatedAt лучше сортировать по нему
-            ...(params.cursor ? { cursor: { id: params.cursor }, skip: 1 } : {}),
+            // тут ИСПОЛЬЗУЕМ реальное поле модели, например createdAt
+            orderBy: { createdAt: 'desc' },
             select: {
                 id: true,
                 projectId: true,
@@ -229,13 +227,10 @@ export class ConversationsService {
                 contractor: {
                     select: {
                         id: true,
-                        companyName: true,
                         user: { select: { id: true, name: true, avatarUrl: true } },
                     },
                 },
                 messages: {
-                    take: 1,
-                    orderBy: { createdAt: 'desc' },
                     select: {
                         id: true,
                         createdAt: true,
@@ -244,22 +239,51 @@ export class ConversationsService {
                         attachmentUrl: true,
                         readAt: true,
                     },
+                    orderBy: { createdAt: 'desc' },
+                    take: 1, // берём только последний месседж
                 },
             },
         });
 
-        const nextCursor = items.length === take ? items[items.length - 1].id : null;
+        const convIds = rows.map((c) => c.id);
+        if (!convIds.length) return [];
 
-        // нормализуем: кладём lastMessage и не отдаём массив messages
-        const normalized = items.map((c) => {
-            const lastMessage: Message | null = (c.messages[0] as unknown as Message) ?? null;
-            // удаляем messages из выдачи
-            const { messages, ...rest } = c as any;
-            return { ...rest, lastMessage };
+        // один запрос, который считает непрочитанные по всем диалогам сразу
+        const unreadGrouped = await this.prisma.message.groupBy({
+            by: ['conversationId'],
+            where: {
+                conversationId: { in: convIds },
+                readAt: null,
+                senderId: { not: userId },
+            },
+            _count: { _all: true },
         });
 
-        return { items: normalized, nextCursor };
+        const unreadMap = new Map<string, number>(
+          unreadGrouped.map((row) => [row.conversationId, row._count._all]),
+        );
+
+        // мапим в результат, добавляя unread
+        const conversationsWithUnread = rows.map((conv) => ({
+            ...conv,
+            unread: unreadMap.get(conv.id) ?? 0,
+        }));
+
+        return conversationsWithUnread;
     }
+
+    async readMessage(messageId: string){
+        return await this.prisma.message.update({
+            where: {
+                id: messageId,
+            },
+            data:{
+                readAt: new Date(),
+            }
+        })
+    }
+
+
     async listMessagesTimeline(
       conversationId: string,
       userId: string,
@@ -321,6 +345,28 @@ export class ConversationsService {
                 readAt: null,              // ещё не прочитано
                 senderId: { not: userId }, // не считаем собственные сообщения
                 conversation: {
+                    OR: [
+                        { clientId: userId },               // я — клиент
+                        { contractor: { userId: userId } }, // я — исполнитель (по userId у Contractor)
+                    ],
+                },
+            },
+        });
+
+        return { unread };
+    }
+
+    async getUnreadCountForChat(chatId: string | undefined, userId: string | undefined) {
+        if (!userId) {
+            throw new BadRequestException('User not resolved from token');
+        }
+
+        const unread = await this.prisma.message.count({
+            where: {
+                readAt: null,              // ещё не прочитано
+                senderId: { not: userId }, // не считаем собственные сообщения
+                conversation: {
+                    id: chatId,
                     OR: [
                         { clientId: userId },               // я — клиент
                         { contractor: { userId: userId } }, // я — исполнитель (по userId у Contractor)

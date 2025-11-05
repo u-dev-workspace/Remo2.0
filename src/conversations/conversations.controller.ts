@@ -71,5 +71,9 @@ export class ConversationsController {
     async getUnreadCount(@Req() req: Request) {
         return this.service.getUnreadCountForUser((req as any).user?.id);
     }
+    @Post('read/:messageId')
+    async read(@Req() req: Request, @Param('messageId') messageId: string) {
+        return this.service.readMessage(messageId);
+    }
 
 }
