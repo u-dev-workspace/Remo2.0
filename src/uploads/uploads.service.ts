@@ -71,9 +71,6 @@ export class UploadsService {
         return { uploadUrl, objectKey: key, url, headers: { 'Content-Type': mime } };
     }
 
-    async deleteObject(objectKey: string) {
-        await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: objectKey }));
-    }
 
     private extFromMime(m: string) {
         if (m === 'image/jpeg') return 'jpg';
@@ -83,4 +80,49 @@ export class UploadsService {
         if (m === 'image/heic') return 'heic';
         return null;
     }
+
+    async createServiceIconPresignedPut(
+      serviceId: string,
+      mime: string,
+      sizeBytes: number,
+      ext?: string,
+    ) {
+        if (!ALLOWED.includes(mime)) {
+            throw new BadRequestException('Недопустимый тип файла для иконки');
+        }
+
+        if (sizeBytes > this.maxSize) {
+            throw new BadRequestException('Файл слишком большой');
+        }
+
+        const realExt = ext || this.extFromMime(mime);
+        if (!realExt) {
+            throw new BadRequestException('Неизвестное расширение для mime-типа');
+        }
+
+        const objectKey = `service-icons/${serviceId}/${randomUUID()}.${realExt}`;
+
+        const command = new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: objectKey,
+            ContentType: mime,
+        });
+
+        const uploadUrl = await getSignedUrl(this.s3, command, {
+            expiresIn: 60 * 10, // 10 минут
+        });
+
+        const publicUrl = this.publicUrl
+          ? `${this.publicUrl}/${objectKey}`
+          : objectKey;
+
+        return {
+            uploadUrl,
+            objectKey,
+            publicUrl,
+        };
+    }
+
+
+
 }

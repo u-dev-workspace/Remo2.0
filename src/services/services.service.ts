@@ -4,10 +4,30 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ListServicesQueryDto } from './dto/list-services';
 import { SetServiceCategoriesDto } from './dto/set-service-categories.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
+import { SetServiceCoverDto } from './dto/set-service-cover.dto';
+import { SetServiceIconDto } from './dto/set-service-icon.dto';
+import { PresignIconDto } from './dto/presign-icon.dto';
+import { UploadsService } from '../uploads/uploads.service';
+import { randomUUID } from 'crypto';
+import { join } from 'path';
+
+import { createWriteStream, promises as fs } from 'fs';
+import { pipeline } from 'stream/promises';
+import type { Readable } from 'stream';
+
+type SaveIconStreamArgs = {
+  serviceId: string;
+  filename: string;
+  mimetype?: string;
+  fileStream: Readable;
+};
 
 @Injectable()
 export class ServicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly uploads: UploadsService, // 🔽
+  ) {}
 
   async list(dto: ListServicesQueryDto) {
     const take = Math.min(Math.max(dto.take ?? 20, 1), 100);
@@ -39,6 +59,7 @@ export class ServicesService {
         slug: true,
         name: true,
         description: true,
+        iconUrl:true,
         isActive: true,
         categories: { select: { id: true, name: true } },
       },
@@ -157,4 +178,155 @@ export class ServicesService {
 
     return updated;
   }
+
+  async getCoverServices() {
+    const items = await this.prisma.service.findMany({
+      where: { isCoverser: true, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      take: 8,
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        iconUrl: true,
+        isCoverser: true,
+        isActive: true,
+        categories: { select: { id: true, name: true } },
+      },
+    });
+
+    return items;
+  }
+
+  private async ensureServiceExists(id: string): Promise<Service> {
+    const srv = await this.prisma.service.findUnique({ where: { id } });
+    if (!srv) throw new NotFoundException('Service not found');
+    return srv;
+  }
+
+  async setCoverFlag(id: string, dto: SetServiceCoverDto) {
+    const service = await this.ensureServiceExists(id);
+
+    if (dto.isCoverser && !service.isCoverser) {
+      const count = await this.prisma.service.count({
+        where: { isCoverser: true, isActive: true },
+      });
+
+      if (count >= 8) {
+        throw new BadRequestException('Нельзя разместить на обложке более 8 услуг');
+      }
+    }
+
+    const updated = await this.prisma.service.update({
+      where: { id },
+      data: { isCoverser: dto.isCoverser },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        iconUrl: true,
+        isCoverser: true,
+        isActive: true,
+        categories: { select: { id: true, name: true } },
+      },
+    });
+
+    return updated;
+  }
+
+  async setIconUrl(id: string, dto: SetServiceIconDto) {
+    await this.ensureServiceExists(id);
+
+    const updated = await this.prisma.service.update({
+      where: { id },
+      data: { iconUrl: dto.iconUrl },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        iconUrl: true,
+        isCoverser: true,
+        isActive: true,
+        categories: { select: { id: true, name: true } },
+      },
+    });
+
+    return updated;
+  }
+
+  // services.service.ts
+  async createIconPresignedPut(
+    id: string,
+    fileInfo: { mime: string; sizeBytes: number },
+  ) {
+    await this.ensureServiceExists(id);
+
+    // просто пробрасываем в UploadsService
+    return this.uploads.createServiceIconPresignedPut(
+      id,
+      fileInfo.mime,
+      fileInfo.sizeBytes,
+    );
+  }
+
+  private readonly root = join(process.cwd(), 'uploads');
+  private iconFolder = 'service-icons';
+  async saveIconFileStream({ serviceId, filename, mimetype, fileStream }: SaveIconStreamArgs) {
+    await this.ensureServiceExists(serviceId);
+
+    if (!fileStream) {
+      throw new BadRequestException('Пустой файл');
+    }
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/heic'];
+    if (mimetype && !allowed.includes(mimetype)) {
+      throw new BadRequestException('Недопустимый тип файла для иконки');
+    }
+
+    const safeName = filename?.replace(/[^\p{L}\p{N}\.\-_ ]/gu, '_') || 'icon';
+    const unique = `${Date.now()}_${randomUUID()}`.slice(0, 36);
+    const finalName = `${unique}_${safeName}`;
+
+    const dirAbs = join(this.root, this.iconFolder, serviceId);
+    await fs.mkdir(dirAbs, { recursive: true });
+
+    const absPath = join(dirAbs, finalName);
+    const write = createWriteStream(absPath);
+
+    await pipeline(fileStream, write); // теперь ок
+
+    const staticRelativePath = join(this.iconFolder, serviceId, finalName).replace(/\\/g, '/');
+    const dbPath = `/uploads/${staticRelativePath}`;
+
+    const updated = await this.prisma.service.update({
+      where: { id: serviceId },
+      data: {
+        iconUrl: dbPath,
+      },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        iconUrl: true,
+        isCoverser: true,
+        isActive: true,
+        categories: { select: { id: true, name: true } },
+      },
+    });
+
+    return updated;
+  }
+
+
+
+
+
+
+
+
+
 }

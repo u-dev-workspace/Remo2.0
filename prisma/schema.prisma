@@ -76,6 +76,8 @@ model User {
   cityId             String?
   favorite           Favorite[]
   favoriteContractor FavoriteContractor[]
+  review             Review[]
+  Notification       Notification[]
 }
 
 model Contractor {
@@ -96,6 +98,7 @@ model Contractor {
   services                ContractorService[] // ← связи "исполнитель ↔ услуга"
   ContractorShowcaseImage ContractorShowcaseImage[]
   favorites               FavoriteContractor[]
+  review                  Review[]
 
   @@index([cityId])
 }
@@ -132,13 +135,15 @@ model Service {
   slug        String   @unique
   name        String
   description String?
+  iconUrl     String?  @map("icon_url") // 🔹 иконка
+  isCoverser  Boolean  @default(false) @map("is_coverser") // 🔹 на обложке
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   categories Category[] @relation("ServiceCategories")
 
-  projectLinks    ProjectService[] // ← новые обратные связи
+  projectLinks    ProjectService[]
   contractorLinks ContractorService[]
 }
 
@@ -191,6 +196,7 @@ model Project {
   city                 City?                  @relation(fields: [cityId], references: [id], onDelete: SetNull)
   ProjectShowcaseImage ProjectShowcaseImage[]
   favorite             Favorite[]
+  review               Review[]
 
   @@index([clientId])
   @@index([propertyType])
@@ -361,5 +367,62 @@ model FavoriteContractor {
   contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
 
   @@unique([userId, contractorId], name: "uniq_favorite_user_contractor")
+  @@index([userId, createdAt])
+}
+
+enum ReviewStatus {
+  PENDING // ждёт публикации
+  PUBLISHED // опубликован
+  REJECTED // если потом захочешь ручную модерацию
+}
+
+model Review {
+  id           String @id @default(cuid())
+  userId       String
+  contractorId String
+  projectId    String
+
+  rating      Int
+  text        String       @db.Text
+  status      ReviewStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  publishedAt DateTime?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Композитный уникальный ключ
+  @@unique([userId, contractorId, projectId], map: "uniq_review_user_contractor_project")
+  // индекс, который мы оставили
+  @@index([contractorId, createdAt], name: "review_contractorId_createdAt_idx")
+}
+
+enum NotificationType {
+  INFO
+  ALERT
+}
+
+enum NotificationStatus {
+  UNREAD // для info
+  READ // для info
+  PENDING // для alert
+  ACCEPTED // для alert
+  REJECTED // для alert
+}
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String
+  type      NotificationType
+  status    NotificationStatus
+  title     String?
+  message   String
+  data      Json? // произвольный payload для фронта/логики
+  createdAt DateTime           @default(now())
+  readAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, createdAt])
 }
