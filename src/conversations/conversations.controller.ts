@@ -76,4 +76,14 @@ export class ConversationsController {
         return this.service.readMessage(messageId);
     }
 
+    @Post('chat/update/:chatId')
+    async updateChat(@Req() req: Request, @Param('chatId') chatId: string) {
+        return this.service.updateChat(chatId);
+    }
+
+    @Get('last/chats')
+    async twoLastChats(@Req() req: any) {
+        return this.service.getLastChats( req.user?.id);
+    }
+
 }

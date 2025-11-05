@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { NotificationType, NotificationStatus, ReviewStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { JsPromise } from '@prisma/client/runtime/binary';
 
 @Injectable()
 export class ReviewsService {
@@ -59,14 +60,20 @@ export class ReviewsService {
         status: ReviewStatus.PENDING,
         publishedAt: null,
       },
+      include:{
+        project:true
+      }
     });
+
+
 
     setTimeout(() => {
       this.publishIfStillPending(review.id).catch(err => {
         this.logger.error(`Failed to publish review ${review.id}`, err);
       });
     }, 15_000);
-
+    // this.notifications.createInfo(userId, {title: "test", data: null,
+    //   message: `Был размещен отзыв о вашей работе на проекте: ${review.project.title}`})
     return review;
   }
 
@@ -99,12 +106,9 @@ export class ReviewsService {
     if (contractorUserId) {
       await this.notifications.createInfo(contractorUserId, {
         title: 'Новый отзыв на вашу работу',
-        message: `По проекту "${review.project?.title ?? 'Без названия'}" опубликован отзыв.`,
+        message: `По проекту ${review.project?.title} опубликован отзыв.`,
         data: {
           reviewId: review.id,
-          projectId: review.projectId,
-          contractorId: review.contractorId,
-          rating: review.rating,
         },
       });
     }

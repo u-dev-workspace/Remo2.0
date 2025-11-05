@@ -7,11 +7,14 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 
 @Module({
     imports: [
-        AuthModule,                   // <- здесь появится JwtService
+        AuthModule,
+        NotificationsModule,// <- здесь появится JwtService
         EventEmitterModule.forRoot(), // <- для @OnEvent
     ],
     controllers: [ConversationsController],

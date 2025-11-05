@@ -23,7 +23,7 @@ class SetAvatarUrlDto {
   avatarUrl!: string;
 }
 
-@ApiTags('users')
+@ApiTags('Users')
 @ApiBearerAuth('bearerAuth')
 @UseGuards(JwtGuard)
 @Controller('api/v1/users')

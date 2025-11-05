@@ -57,6 +57,8 @@ export class NotificationsService {
    * Получить уведомления конкретного пользователя
    */
   async getForUser(userId: string, onlyUnread = false) {
+
+    // this.createInfo(userId, {title: "test", data: null, message: "соси дура, член мне"})
     return this.prisma.notification.findMany({
       where: {
         userId,

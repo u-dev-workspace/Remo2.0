@@ -322,6 +322,41 @@ export class ServicesService {
   }
 
 
+  async getPopularServices() {
+    const services = await this.prisma.service.findMany({
+      where: {
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        iconUrl: true,
+        description: true,
+        projectLinks: {
+          select: { id: true },
+        },
+        contractorLinks: {
+          select: { id: true },
+        },
+      },
+    });
+
+    // посчитать и отсортировать по сумме
+    const withCounts = services
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        iconUrl: s.iconUrl,
+        description: s.description,
+        projectsCount: s.projectLinks.length,
+        contractorsCount: s.contractorLinks.length,
+        totalCount: s.projectLinks.length + s.contractorLinks.length,
+      }))
+      .sort((a, b) => b.totalCount - a.totalCount);
+
+    return withCounts.slice(0, 10); // например, топ-10
+  }
+
 
 
 

@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Conversation, Message, Prisma } from '@prisma/client';
 
 import now = jest.now;
+import { NotificationsService } from '../notifications/notifications.service';
 type ListConversationsParams = {
     role?: 'client' | 'contractor';
     take?: number;
@@ -15,6 +16,7 @@ export class ConversationsService {
     constructor(
       private readonly prisma: PrismaService,
       private readonly events: EventEmitter2,
+      private readonly notifications: NotificationsService,
     ) {}
 
     /**
@@ -51,6 +53,9 @@ export class ConversationsService {
                 contractorId: contractor.id,
             },
         });
+
+        await this.notifications.createInfo(conversation.clientId, {title: "Новый исполнитель", data: {chatId: conversation.id},
+            message: 'Вашим проектом заинтересовался новый исполнитель'})
 
         return conversation;
     }
@@ -221,6 +226,7 @@ export class ConversationsService {
                 id: true,
                 projectId: true,
                 clientId: true,
+                updatedAt: true,
                 contractorId: true,
                 project: { select: { id: true, title: true, coverAttachmentId: true } },
                 client: { select: { id: true, name: true, avatarUrl: true } },
@@ -273,7 +279,9 @@ export class ConversationsService {
     }
 
     async readMessage(messageId: string){
-        return await this.prisma.message.update({
+
+
+        return  await this.prisma.message.update({
             where: {
                 id: messageId,
             },
@@ -281,6 +289,64 @@ export class ConversationsService {
                 readAt: new Date(),
             }
         })
+    }
+
+    async updateChat(chatId: string){
+
+        return  await this.prisma.conversation.update({
+            where: {
+                id: chatId,
+            },
+            data:{
+                updatedAt: new Date(),
+            }
+        })
+    }
+
+    async getLastChats(userId: string) {
+        return await this.prisma.conversation.findMany({
+            where: {
+                clientId: userId,
+            },
+            take: 2,
+            orderBy: {
+                updatedAt: 'desc', // последние обновленные
+            },
+            include: {
+                messages: {
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                    take: 1, // только последнее сообщение
+                },
+                project: {
+                    select: {
+                        id: true,
+                        title: true,
+                        coverAttachment: true,
+                    },
+                },
+                contractor: {
+                    select: {
+                        id: true,
+                        user: {
+                            select: {
+                                id: true,
+                                name: true,
+                                avatarUrl: true,
+                            },
+                        },
+                    },
+                },
+                client: {
+                    select: {
+                        id: true,
+                        name: true,
+                        avatarUrl: true,
+                    },
+                },
+            },
+        });
     }
 
 

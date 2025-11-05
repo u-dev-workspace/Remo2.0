@@ -175,4 +175,9 @@ export class ServicesController {
     return this.service.setCategories(id, dto);
   }
 
+  @Get('/popular/services')
+  async popular() {
+    return this.service.getPopularServices();
+  }
+
 }
