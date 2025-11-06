@@ -82,11 +82,18 @@ export class UserService {
 
   /** Получить текущий avatarUrl пользователя (для редиректа/проверки) */
   async getUserAvatarUrl(userId: string): Promise<string | null> {
+    if (!userId) {
+      throw new BadRequestException('userId is required');
+    }
+
     const u = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { avatarUrl: true },
     });
+
     if (!u) throw new NotFoundException('User not found');
     return u.avatarUrl ?? null;
   }
+
+
 }

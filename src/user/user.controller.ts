@@ -6,7 +6,7 @@ import {
   Body,
   Req,
   Param,
-  UseGuards, UnauthorizedException,
+  UseGuards, UnauthorizedException, Res,
 } from '@nestjs/common';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiProperty, ApiTags } from '@nestjs/swagger';
@@ -68,11 +68,14 @@ export class UserController {
   @Get(':userId/avatar/download')
   async downloadAvatar(
     @Param('userId') userId: string,
-    @Req() req: FastifyRequest,
+    @Res() reply: FastifyReply,
   ) {
     const url = await this.userService.getUserAvatarUrl(userId);
-    const reply = (req as any).reply as FastifyReply;
-    if (url) return reply.redirect(url);
+
+    if (url) {
+      return reply.redirect(url);
+    }
+
     return reply.code(204).send();
   }
 }
