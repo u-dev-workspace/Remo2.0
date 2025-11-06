@@ -12,6 +12,8 @@ const contractorInclude = {
       id: true,
       companyName: true,
       about: true,
+
+      user: { select: {name:true, avatarUrl:true,} } ,
       // город
       city: {
         select: {
@@ -274,10 +276,6 @@ export class FavoritesService {
     };
   }
 
-
-  // dto ожидаю такого вида:
-// export class AddFavoriteContractorDto { contractorId: string; }
-
   async addContractor(
     userId: string | undefined,
      contractorId: string , // или AddFavoriteContractorDto
@@ -358,7 +356,7 @@ export class FavoritesService {
     if (useCursor) {
       const exists = await this.prisma.favoriteContractor.findUnique({
         where: { id: useCursor },
-        select: { id: true },
+        select: { id: true, contractor:{select: { user: true }} },
       });
       if (!exists) {
         useCursor = undefined;
