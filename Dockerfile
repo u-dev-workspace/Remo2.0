@@ -21,7 +21,7 @@ COPY prisma ./prisma
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
 
-RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
+
 
 RUN yarn prisma generate && yarn build
 
@@ -56,8 +56,7 @@ COPY --from=build /app/prisma ./prisma
 COPY .env .env
 
 # Директория для загрузок и права
-RUN mkdir -p /app/uploads && chown -R node:node /app
-USER node
+
 
 EXPOSE 8080
 
