@@ -18,7 +18,7 @@ services:
     ports:
       - "3005:8080"
     volumes:
-      - uploads_data:/app/uploads
+      - /var/www/remo-uploads:/app/uploads
     # убедимся, что папка доступна пользователю node внутри контейнера
     command: >
       sh -c "mkdir -p /app/uploads &&
