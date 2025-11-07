@@ -34,7 +34,23 @@ async function bootstrap() {
   await fastify.register(fastifyStatic, {
     root: join(process.cwd(), 'uploads'),
     prefix: '/uploads/',
+    decorateReply: false,
+    setHeaders: (res, path) => {
+      // Разрешаем CORS
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+      // Гарантируем корректный тип контента
+      if (path.endsWith('.jpg') || path.endsWith('.jpeg')) {
+        res.setHeader('Content-Type', 'image/jpeg');
+      }
+      if (path.endsWith('.png')) {
+        res.setHeader('Content-Type', 'image/png');
+      }
+    },
   });
+
 
   // 3. Multipart
   await fastify.register(multipart, {
