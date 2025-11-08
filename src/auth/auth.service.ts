@@ -75,7 +75,7 @@ export class AuthService {
                 projects: true,           // при желании сузить поля — поменяй на select
                 Conversation: true,
                 Subscription: true,
-                city:true,
+                City:true,
             },
         });
         if (!user) throw new NotFoundException('User not found');
