@@ -4,6 +4,8 @@ pipeline {
     environment {
         COMPOSE_FILE = 'docker-prod-compose.yml'
         APP_NAME = 'remo-api'
+        TELEGRAM_BOT_TOKEN = credentials('telegram-bot-token')
+        TELEGRAM_CHAT_ID   = credentials('telegram-chat-id') // тут @my_ci_builds
     }
 
     stages {
@@ -31,12 +33,41 @@ pipeline {
         }
     }
 
-    post {
-        failure {
-            echo "Deploy failed!"
+        post {
+            failure {
+                script {
+                    def text = """⚠️ Jenkins: сборка упала
+    Job: ${env.JOB_NAME}
+    Build: #${env.BUILD_NUMBER}
+    Status: FAILURE
+    URL: ${env.BUILD_URL}"""
+
+                    def safeText = text.replace('" Папочка будет недоволен', '\\"')
+
+                    sh """
+                      curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                        -d chat_id="${TELEGRAM_CHAT_ID}" \
+                        -d text="${safeText}"
+                    """
+                }
+            }
+
+            success {
+                script {
+                    def text = """🟢 Jenkins: сборка успешна
+    Job: ${env.JOB_NAME}
+    Build: #${env.BUILD_NUMBER}
+    Status: SUCCESS
+    URL: ${env.BUILD_URL}"""
+
+                    def safeText = text.replace('" Папочка доволен', '\\"')
+
+                    sh """
+                      curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                        -d chat_id="${TELEGRAM_CHAT_ID}" \
+                        -d text="${safeText}"
+                    """
+                }
+            }
         }
-        success {
-            echo "Deploy successful!"
-        }
-    }
 }
