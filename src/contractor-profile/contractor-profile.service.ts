@@ -92,7 +92,7 @@ export class ContractorProfileService {
   async updateProfile(userId: string, data: UpdateContractorDto) {
     await this.getByUserIdOrThrow(userId);
 
-    // если в payload присутствует categoryIds — делаем полную замену
+    // если в payload присутствует categoryIds — делаем полную замену ewffefewewf
     let categoriesUpdate:
       | Prisma.ContractorUpdateInput['categories']
       | undefined = undefined;
