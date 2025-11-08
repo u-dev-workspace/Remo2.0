@@ -68,6 +68,10 @@ export class UserController {
   async changeCity(@Req() req: any, @Param('cityId') cityId: string) {
     return this.userService.changeCity(req.user?.id, cityId);
   }
+  @Patch('my/city/contractor/:cityId')
+  async changeCityForContractor(@Req() req: any, @Param('cityId') cityId: string) {
+    return this.userService.changeCityForContractor(req.user?.id, cityId);
+  }
 
   /** (опционально) Редирект на аватар конкретного пользователя */
   @Get(':userId/avatar/download')
