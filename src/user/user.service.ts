@@ -80,6 +80,25 @@ export class UserService {
     });
   }
 
+  async changeCity(userId: string, cityId: string) {
+    console.log('changeCity() called:', { userId, cityId });
+    await this.ensureUser(userId);
+
+    try {
+      const updated = await this.prisma.user.update({
+        where: { id: userId },
+        data: { cityId },
+        select: { id: true, cityId: true, City: { select: { id: true, nameRu: true } } },
+      });
+      console.log('✅ updated:', updated);
+      return updated;
+    } catch (err: any) {
+      console.error('❌ Prisma error in changeCity:', err);
+      throw err;
+    }
+  }
+
+
   /** Получить текущий avatarUrl пользователя (для редиректа/проверки) */
   async getUserAvatarUrl(userId: string): Promise<string | null> {
     if (!userId) {

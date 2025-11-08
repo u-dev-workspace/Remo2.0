@@ -6,7 +6,7 @@ import {
   Body,
   Req,
   Param,
-  UseGuards, UnauthorizedException, Res,
+  UseGuards, UnauthorizedException, Res, Patch,
 } from '@nestjs/common';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiProperty, ApiTags } from '@nestjs/swagger';
@@ -62,6 +62,11 @@ export class UserController {
   @Delete('me/avatar')
   async clearMyAvatar(@Req() req: any) {
     return this.userService.clearMyAvatar(req.user.userId);
+  }
+
+  @Patch('my/city/:cityId')
+  async changeCity(@Req() req: any, @Param('cityId') cityId: string) {
+    return this.userService.changeCity(req.user?.id, cityId);
   }
 
   /** (опционально) Редирект на аватар конкретного пользователя */
