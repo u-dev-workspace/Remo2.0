@@ -42,7 +42,7 @@ pipeline {
     Status: FAILURE
     URL: ${env.BUILD_URL}"""
 
-                    def safeText = text.replace('" Папочка будет недоволен', '\\"')
+                    def safeText = text.replace('"', '\\"')
 
                     sh """
                       curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
@@ -60,7 +60,7 @@ pipeline {
     Status: SUCCESS
     URL: ${env.BUILD_URL}"""
 
-                    def safeText = text.replace('" Папочка доволен', '\\"')
+                    def safeText = text.replace('"', '\\"')
 
                     sh """
                       curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
