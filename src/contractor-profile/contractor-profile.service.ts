@@ -15,7 +15,20 @@ export class ContractorProfileService {
     const contractor = await this.prisma.contractor.findUnique({
       where: { userId },
       include: {
-        city:true,
+        city:{
+          select:{
+            id:true,
+            nameRu:true,
+            nameKk:true,
+            nameEn:true,
+          }
+        },
+        user:{
+          select: {
+            name:true,
+            avatarUrl:true,
+          }
+        },
         services: {select: { serviceId:true, service:{select: {name:true}}, selectedCategories:{select:{category:{select:{name:true}}}}}},
       },
     });
@@ -32,7 +45,20 @@ export class ContractorProfileService {
       include: {
         categories: true,
         ContractorAttachment: { take: 3 },
-        city: true,
+        city:{
+          select:{
+            id:true,
+            nameRu:true,
+            nameKk:true,
+            nameEn:true,
+          }
+        },
+        user:{
+          select: {
+            name:true,
+            avatarUrl:true,
+          }
+        },
         services: {select: { serviceId:true, service:{select: {name:true}}, selectedCategories:true}}
       },
     });
