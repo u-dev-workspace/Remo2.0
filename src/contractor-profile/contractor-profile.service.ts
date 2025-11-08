@@ -106,6 +106,7 @@ export class ContractorProfileService {
       {
         where:{
           userId:userId
+
         }
       }
     )
@@ -121,7 +122,7 @@ export class ContractorProfileService {
       where: { userId },
       data: {
         companyName: data.companyName,
-
+        cityId: data.cityId,
         about: data.about,
         ...(categoriesUpdate ? { categories: categoriesUpdate } : {}),
       },

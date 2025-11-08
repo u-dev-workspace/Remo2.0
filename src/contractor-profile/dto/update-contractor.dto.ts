@@ -20,6 +20,12 @@ export class UpdateContractorDto {
   @IsString()
   contractorId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cityId?: string;
+
+
 
   // Если передано — ПОЛНАЯ замена списка категорий
   @ApiPropertyOptional({ type: [String], description: 'Полная замена категорий исполнителя' })
