@@ -101,7 +101,7 @@ export class ContractorProfileService {
       await this.assertAllCategoriesExist(ids);
       categoriesUpdate = { set: ids.map((id) => ({ id })) };
     }
-
+// nfewkfewf
     const contractorId = this.prisma.contractor.findUnique(
       {
         where:{
