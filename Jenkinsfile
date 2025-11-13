@@ -26,6 +26,7 @@ pipeline {
                                 sh 'cp $API_ENV .env'
                             }
                 script {
+                    sh "docker compose -f ${COMPOSE_FILE} down"
                     sh "docker compose -f ${COMPOSE_FILE} build --no-cache"
                 }
             }
