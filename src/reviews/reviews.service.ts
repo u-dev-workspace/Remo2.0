@@ -9,13 +9,15 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { NotificationType, NotificationStatus, ReviewStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { JsPromise } from '@prisma/client/runtime/binary';
+import { MinioService } from '../minio/minio.service';
 
 @Injectable()
 export class ReviewsService {
   private readonly logger = new Logger(ReviewsService.name);
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notifications: NotificationsService, // <- вот он
+    private readonly notifications: NotificationsService,
+    private readonly minio: MinioService,// <- вот он
   ) {}
 
 
@@ -23,7 +25,11 @@ export class ReviewsService {
    * Создание отзыва.
    * Сразу ставим статус PENDING и через 15 секунд пытаемся опубликовать.
    */
-  async create(userId: string, dto: CreateReviewDto) {
+  async create(
+    userId: string,
+    dto: CreateReviewDto,
+    files: { key: string; mime: string }[] = [],
+  ) {
     const { contractorId, projectId, text, rating } = dto;
 
     const [contractor, project] = await Promise.all([
@@ -38,31 +44,28 @@ export class ReviewsService {
       throw new NotFoundException('Project not found');
     }
 
-    const review = await this.prisma.review.upsert({
-      where: {
-        userId_contractorId_projectId: {
-          userId,
-          contractorId,
-          projectId,
-        },
-      },
-      create: {
+    const review = await this.prisma.review.create({
+      data: {
         userId,
         contractorId,
         projectId,
         text,
         rating,
         status: ReviewStatus.PENDING,
+        attachments: files.length
+          ? {
+            create: files.map((f, index) => ({
+              url: f.key,
+              mime: f.mime,
+              sortOrder: index,
+            })),
+          }
+          : undefined,
       },
-      update: {
-        text,
-        rating,
-        status: ReviewStatus.PENDING,
-        publishedAt: null,
+      include: {
+        attachments: true,
+        project: { select: { title: true } },
       },
-      include:{
-        project:true
-      }
     });
 
 

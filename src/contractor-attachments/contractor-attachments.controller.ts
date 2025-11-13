@@ -52,19 +52,29 @@ export class ContractorAttachmentsController {
 
   // Скачивание файла по id (отдаёт файл, а не JSON)
   @Get(':id')
-  async download(@Param('id') id: string, @Req() req: FastifyRequest & { reply: FastifyReply }) {
-    const contractorId = await this.service.resolveContractorId((req as any).user);
-    const { staticRelativePath, downloadName } = await this.service.getStaticPathForContractor(id, contractorId);
-    // @ts-ignore — типы FastifyReply в Nest не всегда видны
-    req.reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+  async download(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { reply: FastifyReply },
+  ) {
+    const contractorId = await this.service.resolveContractorId(
+      (req as any).user,
+    );
+
+    const { downloadUrl } = await this.service.getStaticPathForContractor(
+      id,
+      contractorId,
+    );
+
     // @ts-ignore
-    return req.reply.sendFile(staticRelativePath); // fastify-static отдаст из root=uploads
+    return req.reply.redirect(downloadUrl);
   }
 
-  // Удаление по id
+// Удаление по id
   @Delete(':id')
   async remove(@Param('id') id: string, @Req() req: FastifyRequest) {
-    const contractorId = await this.service.resolveContractorId((req as any).user);
+    const contractorId = await this.service.resolveContractorId(
+      (req as any).user,
+    );
     return this.service.deleteFileForContractor(id, contractorId);
   }
 }

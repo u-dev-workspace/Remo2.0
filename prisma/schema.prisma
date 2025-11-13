@@ -379,6 +379,19 @@ enum ReviewStatus {
   REJECTED // если потом захочешь ручную модерацию
 }
 
+model ReviewAttachment {
+  id        String   @id @default(cuid())
+  reviewId  String
+  url       String // путь/ключ в MinIO, например "reviews/1731-uuid.png"
+  mime      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId, sortOrder])
+}
+
 model Review {
   id           String @id @default(cuid())
   userId       String
@@ -395,10 +408,7 @@ model Review {
   contractor Contractor @relation(fields: [contractorId], references: [id], onDelete: Cascade)
   project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  // Композитный уникальный ключ
-  @@unique([userId, contractorId, projectId], map: "uniq_review_user_contractor_project")
-  // индекс, который мы оставили
-  @@index([contractorId, createdAt], name: "review_contractorId_createdAt_idx")
+  attachments ReviewAttachment[]
 }
 
 enum NotificationType {

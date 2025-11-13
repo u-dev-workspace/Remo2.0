@@ -17,15 +17,19 @@ import {
   ApiTags,
   ApiOkResponse,
   ApiCreatedResponse,
-  ApiParam,
+  ApiParam, ApiConsumes,
 } from '@nestjs/swagger';
+import { Readable } from 'stream';
+import { MinioService } from '../minio/minio.service';
 
 @ApiTags('Reviews')
 @ApiBearerAuth('bearerAuth')
 @Controller('reviews')
 @UseGuards(JwtGuard)
 export class ReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) {}
+  constructor(private readonly reviewsService: ReviewsService,
+  private readonly minio: MinioService
+) {}
 
   /**
    * POST /reviews
@@ -97,5 +101,97 @@ export class ReviewsController {
   async getMyReviews(@Req() req: any) {
     const userId = req.user?.id;
     return this.reviewsService.getMyReviews(userId);
+  }
+
+  @Post('with-files')
+  @ApiOperation({ summary: 'Создать отзыв с фотографиями' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Создание отзыва с возможностью прикрепить файлы',
+    schema: {
+      type: 'object',
+      properties: {
+        contractorId: { type: 'string' },
+        projectId: { type: 'string' },
+        rating: { type: 'integer', minimum: 1, maximum: 5 },
+        text: { type: 'string' },
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+      required: ['contractorId', 'projectId', 'rating', 'text'],
+    },
+  })
+  async createWithFiles(@Req() req: any) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new Error('User not resolved from token');
+    }
+
+    if (!req.isMultipart || !req.isMultipart()) {
+      throw new Error('Content-Type must be multipart/form-data');
+    }
+
+    const parts = req.parts();
+    const fields: Record<string, string> = {};
+    const files: {
+      filename: string;
+      mimetype: string;
+      buffer: Buffer;
+    }[] = [];
+
+    // 1) собираем поля и файлы
+    for await (const part of parts) {
+      if (part.type === 'file' && part.fieldname === 'files') {
+        const buffer = await this.streamToBuffer(part.file);
+        files.push({
+          filename: part.filename,
+          mimetype: part.mimetype,
+          buffer,
+        });
+      } else if (part.type === 'field') {
+        fields[part.fieldname] = part.value;
+      }
+    }
+
+    // 2) формируем dto вручную
+    const dto: CreateReviewDto = {
+      contractorId: fields.contractorId,
+      projectId: fields.projectId,
+      rating: Number(fields.rating),
+      text: fields.text,
+    };
+
+    // тут можно ещё повесить class-validator, но для краткости — ручная проверка
+    if (!dto.contractorId || !dto.projectId || !dto.text || !dto.rating) {
+      throw new Error('Missing required fields');
+    }
+
+    // 3) заливаем файлы в MinIO в папку "reviews"
+    const uploaded: { key: string; mime: string }[] = [];
+
+    for (const file of files) {
+      const ext = file.filename?.split('.').pop();
+      const objectName = this.minio.generateObjectName('reviews', ext);
+      await this.minio.uploadBuffer(objectName, file.buffer, file.mimetype);
+
+      uploaded.push({
+        key: objectName,        // "reviews/...."
+        mime: file.mimetype,
+      });
+    }
+
+    // 4) прокидываем дальше в сервис (там решаешь, как сохранить в БД)
+    return this.reviewsService.create(userId, dto, uploaded);
+  }
+
+  // утилитка для перевода стрима в Buffer (для fastify-multipart)
+  private async streamToBuffer(stream: Readable): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 }

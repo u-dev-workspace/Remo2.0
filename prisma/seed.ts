@@ -36,6 +36,7 @@ const services = [
   {
     name: 'Ремонт под ключ',
     isCoverser: true,
+    iconUrl: 'service_covers/paint-roller-solid (1).png',
     categories: [
       'Черновые работы',
       'Чистовые работы',
@@ -45,6 +46,7 @@ const services = [
   {
     name: 'Электрика',
     isCoverser: true,
+    iconUrl: 'service_covers/bolt-solid.png',
     categories: [
       'Диагностика и осмотр',
       'Монтаж/замена розеток, выключателей, диммеров, УЗО и автоматов',
@@ -59,6 +61,7 @@ const services = [
   {
     name: 'Сантехника и отопление',
     isCoverser: true,
+    iconUrl: 'service_covers/shower-solid.png',
     categories: [
       'Диагностика/осмотр, опрессовка',
       'Водопровод и канализация (прокладка/ремонт/прочистка)',
@@ -77,6 +80,7 @@ const services = [
   {
     name: 'Полы и напольные покрытия',
     isCoverser: true,
+    iconUrl: 'service_covers/square.png',
     categories: [
       'Подготовка основания, стяжка',
       'Монтаж покрытий/плинтусов/лаги',
@@ -97,6 +101,7 @@ const services = [
   {
     name: 'Двери, замки, ключи',
     isCoverser: true,
+    iconUrl: 'service_covers/door-open-solid.png',
     categories: [
       'Открытие дверей/замков (аварийное)',
       'Замки и фурнитура — установка/ремонт/перекодировка',
@@ -130,6 +135,7 @@ const services = [
   {
     name: 'Двери и окна',
     isCoverser: true,
+    iconUrl: 'service_covers/toolbox-solid.png',
     categories: [
       'Замер/установка дверей, окон и фурнитуры',
       'Откосы, подоконники, решётки, рольставни',
@@ -206,6 +212,7 @@ const services = [
   {
     name: 'Мебель и сборка',
     isCoverser: true,
+    iconUrl: 'service_covers/toolbox-solid.png',
     categories: [
       'Сборка/разборка/установка',
       'Ремонт мебели и фурнитуры',
@@ -238,6 +245,7 @@ const services = [
   {
     name: 'Строительные работы',
     isCoverser: true,
+    iconUrl: 'service_covers/hammer-solid.png',
     categories: [
       'Земляные работы',
       'Фундаменты',
@@ -326,6 +334,7 @@ const services = [
   {
     name: 'Проектирование и дизайн',
     isCoverser: true,
+    iconUrl: 'service_covers/palette-solid.png',
     categories: [
       'Архитектурная концепция и проект дома',
       'Конструктив, проекты инженерных систем',
@@ -374,6 +383,7 @@ async function main() {
         slug: slugify(s.name, { lower: true, strict: true }),
         name: s.name,
         isCoverser: s.isCoverser,
+        iconUrl: s.iconUrl ?? null,
         categories: {
           connectOrCreate: s.categories.map((cat) => ({
             where: { name: cat },

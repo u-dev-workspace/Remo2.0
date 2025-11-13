@@ -21,6 +21,8 @@ import { ShowcaseModule } from './showcase/showcase.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MinioModule } from './minio/minio.module';
+import { AttachmentRouterModule } from './attachment-router/attachment-router.module';
 
 
 
@@ -45,6 +47,8 @@ import { NotificationsModule } from './notifications/notifications.module';
         FavoritesModule,
         ReviewsModule,
         NotificationsModule,
+        MinioModule,
+        AttachmentRouterModule,
         EventEmitterModule.forRoot(),
     ],
     providers: [

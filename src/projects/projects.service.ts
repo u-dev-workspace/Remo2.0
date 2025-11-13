@@ -14,6 +14,7 @@ import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { ProjectsListQueryDto } from './dto/projects-list.dto';
 import { Prisma } from '@prisma/client';
+import { MinioService } from '../minio/minio.service';
 
 const pump = promisify(pipeline);
 
@@ -43,7 +44,10 @@ type ProjectsListParams = {
 
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly minio: MinioService,
+  ) {}
 
   private async assertAllCategoriesExist(ids: string[]) {
     if (!ids?.length) return;
@@ -143,10 +147,16 @@ export class ProjectsService {
         coverAttachment: true,
         categories: true,
         services: {
-          select: {id: true, service: {
-            select: {name:true,}},
-            selectedCategories:{
-            select:{ category: true}} }},
+          select: {
+            id: true,
+            service: {
+              select: { name: true },
+            },
+            selectedCategories: {
+              select: { category: true },
+            },
+          },
+        },
         client: {
           select: {
             id: true,
@@ -292,7 +302,6 @@ export class ProjectsService {
     return { ok: true };
   }
 
-  // ---------- upload epta vse rabotaet ----------
   async uploadAttachment(projectId: string, userId: string, req: any) {
     await this.ensureProject(projectId);
 
@@ -307,12 +316,12 @@ export class ProjectsService {
 
     // sortOrder из полей формы (опционально)
     let sortOrder = 0;
-    const so = fields?.sortOrder?.value ?? fields?.sortOrder;
+    const so = fields?.sortOrder?.value ?? (fields as any)?.sortOrder;
     if (typeof so !== 'undefined') {
       const parsed = parseInt(String(so), 10);
       if (!Number.isNaN(parsed) && parsed >= 0) sortOrder = parsed;
     } else {
-      // если не передан — поставим следующий по порядку
+      // как и раньше: берём макс sortOrder и +1
       const last = await this.prisma.attachment.findFirst({
         where: { projectId },
         orderBy: [{ sortOrder: 'desc' }, { createdAt: 'desc' }],
@@ -321,40 +330,60 @@ export class ProjectsService {
       sortOrder = (last?.sortOrder ?? -1) + 1;
     }
 
-    // директория для пользователя
-    const userDir = join(process.cwd(), 'uploads', 'projects', userId);
-    await fsp.mkdir(userDir, { recursive: true });
-
-    // имя файла
     const safeExt = extname(filename || '') || '';
     const newName = `${Date.now()}-${randomUUID()}${safeExt}`;
-    const fullPath = join(userDir, newName);
+    const objectName = `projects/${userId}/${newName}`;
 
-    // сохранить поток на диск
-    await pump(file, (await import('fs')).createWriteStream(fullPath));
+    // читаем поток в Buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of file as any) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    const buffer = Buffer.concat(chunks);
 
-    // публичный URL (через fastifyStatic prefix /uploads)
-    const publicUrl = `/uploads/projects/${userId}/${newName}`;
-
-    // создать запись Attachment
+    // грузим в MinIO
+    await this.minio.uploadBuffer(
+      objectName,
+      buffer,
+      mimetype || 'application/octet-stream',
+    );
     const att = await this.prisma.attachment.create({
       data: {
         projectId,
-        url: publicUrl,
+        url: objectName, // в БД ключ
         mime: mimetype,
         sortOrder,
       },
     });
+    // публичный URL, с которым фронт уже умеет работать
+    const publicUrl = await this.minio.getPublicUrl(att?.url);
 
-    return att;
+    // создать запись Attachment
+    // const att = await this.prisma.attachment.create({
+    //   data: {
+    //     projectId,
+    //     url: publicUrl,
+    //     mime: mimetype,
+    //     sortOrder,
+    //   },
+    // });
+
+    return { ...att, url: publicUrl };
   }
 
+  // ProjectsService.listAttachments
   async listAttachments(projectId: string) {
-    await this.ensureProject(projectId);
-    return this.prisma.attachment.findMany({
+    const attachments = await this.prisma.attachment.findMany({
       where: { projectId },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
+
+    return Promise.all(
+      attachments.map(async (att) => ({
+        ...att,
+        url: await this.minio.getPublicUrl(att.url), // <– ТУТ
+      })),
+    );
   }
 
   async setCover(projectId: string, attachmentId: string) {
@@ -378,6 +407,16 @@ export class ProjectsService {
     if (!att)
       throw new NotFoundException('Attachment not found for this project');
 
+    // попытка удалить файл из MinIO
+    if (att.url && att.url.startsWith('/uploads/')) {
+      const objectName = att.url.replace(/^\/uploads\//, '');
+      try {
+        await this.minio.deleteObject(objectName);
+      } catch (e) {
+        // можно залогировать, но падать не будем
+      }
+    }
+
     await this.prisma.$transaction(async (tx) => {
       const project = await tx.project.findUnique({ where: { id: projectId } });
       if (project?.coverAttachmentId === attachmentId) {
@@ -397,6 +436,12 @@ export class ProjectsService {
     if (!exists) throw new NotFoundException('Project not found');
     return exists;
   }
+
+  // private async ensureProject(id: string) {
+  //   const exists = await this.prisma.project.findUnique({ where: { id } });
+  //   if (!exists) throw new NotFoundException('Project not found');
+  //   return exists;
+  // }
 
   async listProjects(
     params: ProjectsListQueryDto & { userId?: string | null },
@@ -429,7 +474,9 @@ export class ProjectsService {
     }
 
     const query: any = {
-      where,
+      where:{
+        clientId: params.userId
+      },
       orderBy: { createdAt: 'desc' },
       take,
       select: {
@@ -441,10 +488,16 @@ export class ProjectsService {
         cityId: true,
         area: true,
         services: {
-          select: {id: true, service: {
-              select: {name:true,}},
-            selectedCategories:{
-              select:{ category: true}} }},
+          select: {
+            id: true,
+            service: {
+              select: { name: true },
+            },
+            selectedCategories: {
+              select: { category: true },
+            },
+          },
+        },
 
         propertyType: true,
         budgetEstimated: true,
@@ -462,7 +515,6 @@ export class ProjectsService {
           select: { id: true, name: true, avatarUrl: true, cityId: true },
         },
       },
-
     };
 
     if (params.cursor) {
@@ -747,4 +799,79 @@ export class ProjectsService {
       });
     });
   }
+
+  async uploadFile(projectId: string, userId: string, req: any) {
+    await this.ensureProject(projectId);
+
+    const data = await req.file(); // fastify-multipart
+    if (!data) throw new BadRequestException('file is required');
+
+    const { filename, mimetype, file, fields } = data;
+
+    // ✅ НЕТ ограничения image/* — разрешаем любые типы
+    // (при желании: добавь белый список здесь)
+
+    // sortOrder (опционально)
+    let sortOrder = 0;
+    const so = (fields as any)?.sortOrder?.value ?? (fields as any)?.sortOrder;
+    if (typeof so !== 'undefined') {
+      const parsed = parseInt(String(so), 10);
+      if (!Number.isNaN(parsed) && parsed >= 0) sortOrder = parsed;
+    } else {
+      const last = await this.prisma.attachment.findFirst({
+        where: { projectId },
+        orderBy: [{ sortOrder: 'desc' }, { createdAt: 'desc' }],
+        select: { sortOrder: true },
+      });
+      sortOrder = (last?.sortOrder ?? -1) + 1;
+    }
+
+    const safeExt = extname(filename || '') || '';
+    const newName = `${Date.now()}-${randomUUID()}${safeExt}`;
+
+    // 👉 складываем документы отдельно от картинок:
+    // было: `projects/${userId}/${newName}`
+    const objectName = `projects/${userId}/files/${newName}`;
+
+    // читаем поток
+    const chunks: Buffer[] = [];
+    for await (const chunk of file as any) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    const buffer = Buffer.concat(chunks);
+
+    await this.minio.uploadBuffer(
+      objectName,
+      buffer,
+      mimetype || 'application/octet-stream',
+    );
+
+    const att = await this.prisma.attachment.create({
+      data: {
+        projectId,
+        url: objectName, // ключ в MinIO
+        mime: mimetype ?? 'application/octet-stream',
+        sortOrder,
+      },
+    });
+
+    const publicUrl = await this.minio.getPublicUrl(att.url);
+    return { ...att, url: publicUrl };
+  }
+
+  listFiles(projectId: string) {
+    return this.prisma.attachment.findMany({
+      where: {
+        projectId,
+        NOT: { mime: { startsWith: 'image/' } },
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    }).then(rows =>
+      Promise.all(rows.map(async (r) => ({
+        ...r,
+        url: await this.minio.getPublicUrl(r.url),
+      })))
+    );
+  }
+
 }

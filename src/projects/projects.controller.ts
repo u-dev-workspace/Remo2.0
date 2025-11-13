@@ -5,8 +5,11 @@ import {
   Get,
   Param,
   Patch,
-  Post, Query,
-  Req, UseGuards, ValidationPipe,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,7 +18,8 @@ import {
   ApiOkResponse,
   ApiBearerAuth,
   ApiConsumes,
-  ApiBody, ApiQuery,
+  ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -50,12 +54,12 @@ export class ProjectsController {
   @Patch(':id')
   async update(
     @Param('id') id: string,
-    @Body(new ValidationPipe({ transform: true, whitelist: true })) dto: UpdateProjectDto,
+    @Body(new ValidationPipe({ transform: true, whitelist: true }))
+    dto: UpdateProjectDto,
     @Req() req: any,
   ) {
     return this.service.update(id, dto, req.user?.id);
   }
-
 
   @Delete(':projectId')
   @ApiOperation({ summary: 'Удалить проект' })
@@ -66,7 +70,9 @@ export class ProjectsController {
 
   // -------- Upload (multipart) --------
   @Post(':projectId/attachments/upload')
-  @ApiOperation({ summary: 'Загрузить картинку как вложение (сохраняет файл на диск)' })
+  @ApiOperation({
+    summary: 'Загрузить картинку как вложение (сохраняет файл на диск)',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -78,7 +84,10 @@ export class ProjectsController {
       required: ['file'],
     },
   })
-  async uploadAttachment(@Param('projectId') projectId: string, @Req() req: any) {
+  async uploadAttachment(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+  ) {
     // userId лучше брать из auth: req.user.sub / req.user.id
     const userId = req?.user?.sub ?? req?.user?.id ?? 'anonymous';
     return this.service.uploadAttachment(projectId, userId, req);
@@ -90,21 +99,56 @@ export class ProjectsController {
   }
 
   @Patch(':projectId/cover/:attachmentId')
-  setCover(@Param('projectId') projectId: string, @Param('attachmentId') attachmentId: string) {
+  setCover(
+    @Param('projectId') projectId: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
     return this.service.setCover(projectId, attachmentId);
   }
 
   @Delete(':projectId/attachments/:attachmentId')
-  deleteAttachment(@Param('projectId') projectId: string, @Param('attachmentId') attachmentId: string) {
+  deleteAttachment(
+    @Param('projectId') projectId: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
     return this.service.deleteAttachment(projectId, attachmentId);
   }
 
   @Get()
   async list(
-    @Query(new ValidationPipe({ transform: true, whitelist: true })) query: ProjectsListQueryDto,
+    @Query(new ValidationPipe({ transform: true, whitelist: true }))
+    query: ProjectsListQueryDto,
     @Req() req: any,
   ) {
     const userId = req.user?.id ?? null;
     return this.service.listProjects({ ...query, userId }); // ← один аргумент
+  }
+
+  @Post(':projectId/files')
+  @ApiOperation({ summary: 'Upload non-image file (document) to project' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        sortOrder: { type: 'integer', nullable: true },
+      },
+      required: ['file'],
+    },
+  })
+  async uploadProjectFile(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id;
+    return this.service.uploadFile(projectId, userId, req);
+  }
+
+  // Список ТОЛЬКО документов (без image/*)
+  @Get(':projectId/files')
+  @ApiOperation({ summary: 'List project files (non-image attachments)' })
+  listProjectFiles(@Param('projectId') projectId: string) {
+    return this.service.listFiles(projectId);
   }
 }
