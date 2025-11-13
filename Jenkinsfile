@@ -24,15 +24,20 @@ pipeline {
             withCredentials([file(credentialsId: 'remo-api-env', variable: 'API_ENV')]) {
                                 sh 'rm -f .env || true'
                                 sh 'cp $API_ENV .env'
-               }
+                            }
+                script {
+
+                    sh "docker compose -f ${COMPOSE_FILE} build"
+                }
             }
         }
 
         stage('Deploy') {
             steps {
                 script {
-                    sh "docker compose -f ${COMPOSE_FILE} down || true"
-                    sh "docker compose -f ${COMPOSE_FILE} up -d --build"
+                    sh "docker compose -f ${COMPOSE_FILE} down"
+                    sh "docker rm -f remo-api || true"
+                    sh "docker compose -f ${COMPOSE_FILE} up -d"
                 }
             }
         }
