@@ -12,11 +12,19 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+
+
             }
         }
 
+
+
         stage('Build and Push Images') {
             steps {
+            withCredentials([file(credentialsId: 'remo-api-env', variable: 'API_ENV')]) {
+                                sh 'rm -f .env || true'
+                                sh 'cp "API_ENV" .env'
+                            }
                 script {
                     sh "docker compose -f ${COMPOSE_FILE} build --no-cache"
                 }
