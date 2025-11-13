@@ -26,7 +26,7 @@ pipeline {
                                 sh 'cp $API_ENV .env'
                             }
                 script {
-                    sh "docker compose -f ${COMPOSE_FILE} down"
+
                     sh "docker compose -f ${COMPOSE_FILE} build --no-cache"
                 }
             }
@@ -36,6 +36,7 @@ pipeline {
             steps {
                 script {
                     sh "docker compose -f ${COMPOSE_FILE} down"
+                    sh "docker rm -f remo-api || true"
                     sh "docker compose -f ${COMPOSE_FILE} up -d"
                 }
             }
