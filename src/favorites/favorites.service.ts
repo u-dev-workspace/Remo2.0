@@ -239,6 +239,9 @@ export class FavoritesService {
             status: true,
             coverAttachment: true,
             attachments: {take: 3} ,
+            area: true,
+            budgetEstimated: true,
+            propertyType:true,
             city:true,
             services: {
               select: {

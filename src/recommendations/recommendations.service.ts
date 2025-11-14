@@ -192,6 +192,9 @@ export class RecommendationsService {
           description:true,
           status: true,
           attachments: {take:3},
+          area: true,
+          budgetEstimated: true,
+          propertyType:true,
           city:true,
           services: {
             select: {
