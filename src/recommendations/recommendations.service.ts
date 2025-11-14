@@ -143,6 +143,8 @@ export class RecommendationsService {
         where: { userId },
         select: {
           id: true,
+          city:true,
+
           services: {
             select: {
               serviceId: true,
@@ -188,7 +190,8 @@ export class RecommendationsService {
           id: true,
           title: true,
           status: true,
-          cityId: true,
+          attachments: {take:3},
+          city:true,
           services: {
             select: {
               serviceId: true,

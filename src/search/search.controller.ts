@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Query, UsePipes, ValidationPipe,
+  Controller, Get, Query, Req, UsePipes, ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
@@ -30,8 +30,8 @@ export class SearchController {
   // Contractors by city
   @Get('search/contractors')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  contractors(@Query() query: SearchContractorsQueryDto) {
-    return this.service.searchContractors(query);
+  contractors(@Query() query: SearchContractorsQueryDto,@Req() req: any ) {
+    return this.service.searchContractors(query, req.user?.id);
   }
 
   // Projects by city

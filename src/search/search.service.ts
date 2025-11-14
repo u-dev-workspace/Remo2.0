@@ -5,6 +5,7 @@ import { CitySuggestQueryDto } from './dto/city-suggest.dto';
 import { SearchContractorsQueryDto } from './dto/search-contractors.dto';
 import { SearchProjectsQueryDto } from './dto/search-projects.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { not } from 'rxjs/internal/util/not';
 
 @Injectable()
 export class SearchService {
@@ -62,23 +63,40 @@ export class SearchService {
   }
 
   // -------- Contractors by city --------
-  async searchContractors(dto: SearchContractorsQueryDto) {
+  async searchContractors(
+    dto: SearchContractorsQueryDto,
+    currentUserId?: string, // <- сюда прокидываем id текущего юзера
+  ) {
     const take = Math.min(Math.max(dto.take ?? 20, 1), 100);
 
-    let cityId = dto.cityId ?? null;
-    if (!cityId && dto.citySlug) {
+    let citycId = dto.cityId ?? null;
+    if (!citycId && dto.citySlug) {
       const city = await this.prisma.city.findUnique({ where: { slug: dto.citySlug } });
       if (!city) throw new NotFoundException('City not found');
-      cityId = city.id;
+      citycId = city.id;
     }
 
-    const where: Prisma.ContractorWhereInput = cityId ? { cityId } : {};
+    const where: Prisma.ContractorWhereInput = {};
+
+    if (citycId) {
+      where.cityId = citycId;
+    }
+
+    // 🔥 если пользователь сам исполнитель — не показываем его
+    if (currentUserId) {
+      where.userId = { not: currentUserId };
+    }
+
+    console.log(where);
 
     const items = await this.prisma.contractor.findMany({
-      where,
+      where: {
+        ...(citycId && {citycId }),             // если есть cityId → добавим в where
+        ...(currentUserId && { userId: { not: currentUserId } }),
+      },
       take,
       ...(dto.cursor ? { cursor: { id: dto.cursor }, skip: 1 } : {}),
-      orderBy: { id: 'desc' }, // можно заменить на updatedAt при наличии
+      orderBy: { id: 'desc' },
       select: {
         id: true,
         cityId: true,
@@ -86,11 +104,12 @@ export class SearchService {
         user: { select: { id: true, name: true, avatarUrl: true } },
         companyName: true,
         services: {
-          select:
-            { service: { select:{ name:true}},
-              selectedCategories:true}},
+          select: {
+            service: { select: { name: true } },
+            selectedCategories: true,
+          },
+        },
         about: true,
-        // можно добавить count проектов/оценок, если есть
       },
     });
 
