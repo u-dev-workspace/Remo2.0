@@ -189,6 +189,7 @@ export class RecommendationsService {
         select: {
           id: true,
           title: true,
+          description:true,
           status: true,
           attachments: {take:3},
           city:true,
