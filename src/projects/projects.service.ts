@@ -378,12 +378,7 @@ export class ProjectsService {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     });
 
-    return Promise.all(
-      attachments.map(async (att) => ({
-        ...att,
-        url: await this.minio.getPublicUrl(att.url), // <– ТУТ
-      })),
-    );
+    return attachments
   }
 
   async setCover(projectId: string, attachmentId: string) {
