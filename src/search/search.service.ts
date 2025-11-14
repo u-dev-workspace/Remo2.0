@@ -5,7 +5,6 @@ import { CitySuggestQueryDto } from './dto/city-suggest.dto';
 import { SearchContractorsQueryDto } from './dto/search-contractors.dto';
 import { SearchProjectsQueryDto } from './dto/search-projects.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { not } from 'rxjs/internal/util/not';
 
 @Injectable()
 export class SearchService {
@@ -65,35 +64,24 @@ export class SearchService {
   // -------- Contractors by city --------
   async searchContractors(
     dto: SearchContractorsQueryDto,
-    currentUserId?: string, // <- сюда прокидываем id текущего юзера
+    currentUserId?: string, // id текущего пользователя
   ) {
     const take = Math.min(Math.max(dto.take ?? 20, 1), 100);
 
-    let citycId = dto.cityId ?? null;
-    if (!citycId && dto.citySlug) {
+    let cityId = dto.cityId ?? null;
+    if (!cityId && dto.citySlug) {
       const city = await this.prisma.city.findUnique({ where: { slug: dto.citySlug } });
       if (!city) throw new NotFoundException('City not found');
-      citycId = city.id;
+      cityId = city.id;
     }
 
     const where: Prisma.ContractorWhereInput = {};
-
-    if (citycId) {
-      where.cityId = citycId;
+    if (cityId) {
+      where.cityId = cityId;
     }
-
-    // 🔥 если пользователь сам исполнитель — не показываем его
-    if (currentUserId) {
-      where.userId = { not: currentUserId };
-    }
-
-    console.log(where);
 
     const items = await this.prisma.contractor.findMany({
-      where: {
-        ...(citycId && {citycId }),             // если есть cityId → добавим в where
-        ...(currentUserId && { userId: { not: currentUserId } }),
-      },
+      where,
       take,
       ...(dto.cursor ? { cursor: { id: dto.cursor }, skip: 1 } : {}),
       orderBy: { id: 'desc' },
@@ -113,8 +101,15 @@ export class SearchService {
       },
     });
 
-    const nextCursor = items.length === take ? items[items.length - 1].id : null;
-    return { items, nextCursor };
+    // 🔥 убираем из результатов исполнителя, если он совпадает с текущим пользователем
+    const filteredItems = currentUserId
+      ? items.filter((c) => c.user?.id !== currentUserId)
+      : items;
+
+    const nextCursor =
+      filteredItems.length === take ? filteredItems[filteredItems.length - 1].id : null;
+
+    return { items: filteredItems, nextCursor };
   }
 
   // -------- Projects by city --------

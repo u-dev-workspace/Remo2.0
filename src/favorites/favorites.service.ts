@@ -238,7 +238,8 @@ export class FavoritesService {
             title: true,
             status: true,
             coverAttachment: true,
-            attachments: true,
+            attachments: {take: 3} ,
+            city:true,
             services: {
               select: {
                 id: true,
