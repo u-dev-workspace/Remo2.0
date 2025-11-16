@@ -4,8 +4,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UserController } from './user.controller';
 import { ProjectsService } from '../projects/projects.service';
 import { UserService } from './user.service';
+import { MinioModule } from '../minio/minio.module';
+
 
 @Module({
+  imports: [MinioModule],
   controllers: [UserController],
   providers: [UserService, PrismaService],
   exports: [UserService],

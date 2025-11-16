@@ -19,7 +19,7 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiBody,
-  ApiQuery,
+  ApiQuery, ApiProperty,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -27,7 +27,15 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { AddAttachmentDto } from './dto/add-attachment.dto';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { ProjectsListQueryDto } from './dto/projects-list.dto';
+import { IsEnum } from 'class-validator';
+import { ProjectStatus } from '@prisma/client';
 
+
+export class ChangeProjectStatusDto {
+  @ApiProperty({ enum: ProjectStatus })
+  @IsEnum(ProjectStatus)
+  status: ProjectStatus;
+}
 @ApiTags('Project') // ← появится группа в Swagger
 @ApiBearerAuth('bearerAuth')
 @Controller('projects')
@@ -114,6 +122,8 @@ export class ProjectsController {
     return this.service.deleteAttachment(projectId, attachmentId);
   }
 
+
+
   @Get()
   async list(
     @Query(new ValidationPipe({ transform: true, whitelist: true }))
@@ -150,5 +160,16 @@ export class ProjectsController {
   @ApiOperation({ summary: 'List project files (non-image attachments)' })
   listProjectFiles(@Param('projectId') projectId: string) {
     return this.service.listFiles(projectId);
+  }
+
+  @Patch(':projectId/status')
+  @ApiOperation({ summary: 'Смена статуса проекта' })
+  async changeStatus(
+    @Param('projectId') projectId: string,
+    @Body() dto: ChangeProjectStatusDto,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id;
+    return this.service.changeStatus(projectId, dto.status, userId);
   }
 }

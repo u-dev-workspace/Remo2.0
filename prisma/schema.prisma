@@ -67,17 +67,18 @@ model User {
   // one-to-many: user -> messages (как «sender»)
   messages Message[] @relation("UserMessages")
 
-  plan               Plan                 @default(FREE)
-  planUntil          DateTime?
-  isBanned           Boolean              @default(false)
-  Conversation       Conversation[]
-  Subscription       Subscription[]
-  City               City?                @relation(fields: [cityId], references: [id])
-  cityId             String?
-  favorite           Favorite[]
-  favoriteContractor FavoriteContractor[]
-  review             Review[]
-  Notification       Notification[]
+  plan                 Plan                   @default(FREE)
+  planUntil            DateTime?
+  isBanned             Boolean                @default(false)
+  Conversation         Conversation[]
+  Subscription         Subscription[]
+  City                 City?                  @relation(fields: [cityId], references: [id])
+  cityId               String?
+  favorite             Favorite[]
+  favoriteContractor   FavoriteContractor[]
+  review               Review[]
+  Notification         Notification[]
+  ProjectStatusHistory ProjectStatusHistory[]
 }
 
 model Contractor {
@@ -99,6 +100,8 @@ model Contractor {
   ContractorShowcaseImage ContractorShowcaseImage[]
   favorites               FavoriteContractor[]
   review                  Review[]
+  ProjectStatusHistory    ProjectStatusHistory[]
+  Project                 Project[]
 
   @@index([cityId])
 }
@@ -197,11 +200,38 @@ model Project {
   ProjectShowcaseImage ProjectShowcaseImage[]
   favorite             Favorite[]
   review               Review[]
+  ProjectStatusHistory ProjectStatusHistory[]
+
+  responsibleContractorId String?
+  responsibleContractor   Contractor? @relation(fields: [responsibleContractorId], references: [id], onDelete: SetNull)
 
   @@index([clientId])
   @@index([propertyType])
   @@index([area])
   @@index([budgetEstimated])
+}
+
+model ProjectStatusHistory {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  from ProjectStatus?
+  to   ProjectStatus
+
+  changedById String?
+  changedBy   User?   @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  // какой специалист занимался проектом на момент перехода
+  contractorId String?
+  contractor   Contractor? @relation(fields: [contractorId], references: [id], onDelete: SetNull)
+
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([changedById])
+  @@index([contractorId])
 }
 
 model ProjectService {
@@ -409,6 +439,11 @@ model Review {
   project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   attachments ReviewAttachment[]
+
+  // уникальность user + contractor + project (если она тебе всё ещё нужна)
+  @@unique([userId, contractorId, projectId], map: "uniq_review_user_contractor_project")
+  // индекс по contractorId + createdAt
+  @@index([contractorId, createdAt], map: "review_contractorId_createdAt_idx")
 }
 
 enum NotificationType {

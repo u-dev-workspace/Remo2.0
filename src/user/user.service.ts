@@ -4,58 +4,71 @@ import type { FastifyRequest } from 'fastify';
 import { join, extname } from 'path';
 import { randomUUID } from 'crypto';
 import { promises as fsp } from 'fs';
+import { MinioService } from '../minio/minio.service';
 
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly minio: MinioService
+  ) {}
 
   private async ensureUser(userId: string) {
     const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!u) throw new NotFoundException('User not found');
   }
 
-  async uploadMyAvatar(userId: string, req: FastifyRequest) {
+  async uploadMyAvatar(userId: string, req: any) {
+
     await this.ensureUser(userId);
+    const data = await req.file();
 
-    // 1) файл из fastify-multipart
-    let mp: any;
-    try {
-      mp = await (req as any).file(); // один файл
-    } catch (e: any) {
-      // если плагин не зарегистрирован или конфликт boundary
-      throw new BadRequestException('Multipart is not enabled or invalid form-data: ' + (e?.message || ''));
-    }
-    if (!mp) throw new BadRequestException('file is required (field name: "file")');
+    const { filename, mimetype, file, fields } = data;
 
-    const { filename, mimetype } = mp;
     if (!mimetype?.startsWith('image/')) {
       throw new BadRequestException('Only image/* files are allowed');
     }
 
-    // 2) читаем в буфер (надёжнее, чем стрим-пайп на Windows)
-    const buffer: Buffer = await mp.toBuffer();
-    if (!buffer?.length) throw new BadRequestException('Empty file');
-
-    // (опционально) лимит размера, если нужно
-    // const MAX = 10 * 1024 * 1024; if (buffer.length > MAX) throw new BadRequestException('File too large');
-
-    // 3) сохраняем на диск
     const safeExt = extname(filename || '') || '';
     const newName = `${Date.now()}-${randomUUID()}${safeExt}`;
-    const dir = join(process.cwd(), 'uploads', 'avatars', userId);
-    await fsp.mkdir(dir, { recursive: true });
-    await fsp.writeFile(join(dir, newName), buffer);
+    const objectName = `avatars/${userId}/${newName}`;
 
-    // 4) публичный URL (должен соответствовать fastifyStatic prefix)
-    const publicUrl = `/uploads/avatars/${userId}/${newName}`;
+    // читаем поток в Buffer
+    const chunks: Buffer[] = [];
+    for await (const chunk of file as any) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    const buffer = Buffer.concat(chunks);
 
-    // 5) обновляем User.avatarUrl
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { avatarUrl: publicUrl },
-      select: { id: true, avatarUrl: true },
+    // грузим в MinIO
+    await this.minio.uploadBuffer(
+      objectName,
+      buffer,
+      mimetype || 'application/octet-stream',
+    );
+    const att = await this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: {
+        avatarUrl:objectName,
+      },
     });
+    // публичный URL, с которым фронт уже умеет работать
+    const publicUrl = await this.minio.getPublicUrl(objectName);
+
+    // создать запись Attachment
+    // const att = await this.prisma.attachment.create({
+    //   data: {
+    //     projectId,
+    //     url: publicUrl,
+    //     mime: mimetype,
+    //     sortOrder,
+    //   },
+    // });
+
+    return { ...att, url: publicUrl };
   }
 
   /** Установка аватарки по готовому URL (если файл уже загружен другим способом) */

@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, ReviewStatus } from '@prisma/client';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { take } from 'rxjs';
 import { ContractorServiceInput } from './dto/contractor-service-input.dto';
@@ -288,6 +288,57 @@ export class ContractorProfileService {
         },
       });
     });
+  }
+
+
+  async getGlobalRatingByContractorId(contractorId: string) {
+    // сначала убедимся, что исполнитель существует
+    const contractor = await this.prisma.contractor.findUnique({
+      where: { id: contractorId },
+      select: { id: true },
+    });
+
+    if (!contractor) {
+      throw new NotFoundException('Contractor not found');
+    }
+
+    const stats = await this.prisma.review.aggregate({
+      where: {
+        contractorId,
+        status: ReviewStatus.PUBLISHED, // считаем только опубликованные отзывы
+      },
+      _avg: {
+        rating: true,
+      },
+      _count: {
+        _all: true,
+      },
+    });
+
+    const reviewsCount = stats._count._all;
+    const avg = stats._avg.rating;
+
+    return {
+      contractorId,
+      reviewsCount,
+      averageRating: reviewsCount > 0 && avg != null ? Number(avg.toFixed(2)) : null,
+    };
+  }
+
+  /**
+   * Глобальный рейтинг исполнителя по userId владельца профиля
+   */
+  async getGlobalRatingByUserId(userId: string) {
+    const contractor = await this.prisma.contractor.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!contractor) {
+      throw new NotFoundException('Contractor for this user not found');
+    }
+
+    return this.getGlobalRatingByContractorId(contractor.id);
   }
 
 }

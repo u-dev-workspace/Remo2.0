@@ -32,34 +32,17 @@ export class ContractorProfileController {
 
   @Get('profile/:contractorId')
   async getProfileById(@Req() req: any, @Param('contractorId') contractorId : string ) {
-
     return this.contractorProfileService.getProfileByContractorId(contractorId);
   }
 
   @Patch('me')
   @ApiOperation({ summary: 'Обновить профиль исполнителя (companyName, about, и опционально ПОЛНАЯ замена категорий)' })
   @ApiResponse({ status: 200, description: 'Профиль обновлён' })
-  // @UseGuards(JwtAuthGuard)
   async updateProfile(@Req() req: any, @Body() data: UpdateContractorDto) {
     const userId = req.user.id; // или req.user.sub
     return this.contractorProfileService.updateProfile(userId, data);
   }
-
-  // @Post('me/categories')
-  // @ApiOperation({ summary: 'Добавить категории исполнителю (без удаления существующих)' })
-  // // @UseGuards(JwtAuthGuard)
-  // async addCategories(@Req() req: any, @Body() body: AddCategoriesDto) {
-  //   const userId = req.user.id;
-  //   return this.contractorProfileService.addCategories(userId, body);
-  // }
-
-  // @Delete('me/categories/:categoryId')
-  // @ApiOperation({ summary: 'Удалить одну категорию у исполнителя' })
-  // // @UseGuards(JwtAuthGuard)
-  // async removeCategory(@Req() req: any, @Param('categoryId') categoryId: string) {
-  //   const userId = req.user.id;
-  //   return this.contractorProfileService.removeCategory(userId, categoryId);
-  // }
+  
   @Delete('me')
   async deleteProfile(@Req() req) {
     const userId = req.user?.id;
@@ -80,5 +63,37 @@ export class ContractorProfileController {
       throw new BadRequestException('Body must have non-empty "services" array');
     }
     return this.contractorProfileService.setServices(contractorId, body.services, req.user?.id);
+  }
+
+  @Get('rating/by-contractor/:contractorId')
+  @ApiOperation({ summary: 'Глобальный рейтинг исполнителя по contractorId' })
+  @ApiOkResponse({
+    description: 'Глобальный рейтинг исполнителя',
+    schema: {
+      example: {
+        contractorId: 'ctr_123',
+        reviewsCount: 10,
+        averageRating: 4.6,
+      },
+    },
+  })
+  async getRatingByContractorId(@Param('contractorId') contractorId: string) {
+    return this.contractorProfileService.getGlobalRatingByContractorId(contractorId);
+  }
+
+  @Get('rating/by-user')
+  @ApiOperation({ summary: 'Глобальный рейтинг исполнителя по userId владельца профиля ТОЛЬКО ДЛЯ ИСПОЛНИТЕЛЯ!!!' })
+  @ApiOkResponse({
+    description: 'Глобальный рейтинг исполнителя',
+    schema: {
+      example: {
+        contractorId: 'ctr_123',
+        reviewsCount: 10,
+        averageRating: 4.6,
+      },
+    },
+  })
+  async getRatingByUserId(@Req() req: any) {
+    return this.contractorProfileService.getGlobalRatingByUserId(req.user?.id);
   }
 }

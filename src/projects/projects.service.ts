@@ -13,7 +13,7 @@ import fs, { promises as fsp, createWriteStream } from 'fs';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
 import { ProjectsListQueryDto } from './dto/projects-list.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, ProjectStatus } from '@prisma/client';
 import { MinioService } from '../minio/minio.service';
 
 const pump = promisify(pipeline);
@@ -369,6 +369,62 @@ export class ProjectsService {
     // });
 
     return { ...att, url: publicUrl };
+  }
+
+  private isTransitionAllowed(from: ProjectStatus, to: ProjectStatus): boolean {
+    const allowed: {
+      COMPLETED: "ARCHIVED"[];
+      PUBLISHED: (any | "ARCHIVED")[];
+      DRAFT: (any | "ARCHIVED")[];
+      ARCHIVED: any[]
+    } = {
+      DRAFT:     [ProjectStatus.OPEN, ProjectStatus.ARCHIVED],
+      PUBLISHED: [ProjectStatus.CLOSED, ProjectStatus.IN_TALK, ProjectStatus.ARCHIVED],
+      COMPLETED: [ProjectStatus.ARCHIVED],
+      ARCHIVED:  [], // из архива никуда
+    };
+
+    return allowed[from]?.includes(to) ?? false;
+  }
+
+  async changeStatus(
+    projectId: string,
+    newStatus: ProjectStatus,
+    currentUserId: string,
+  ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: { responsibleContractor: true },
+    });
+
+    if (!project) throw new NotFoundException('Project not found');
+
+    if (project.status === newStatus) return project;
+
+    if (!this.isTransitionAllowed(project.status as ProjectStatus, newStatus)) {
+      throw new BadRequestException(
+        `Переход из ${project.status} в ${newStatus} не разрешён`,
+      );
+    }
+
+    // Обновляем проект
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: { status: newStatus },
+    });
+
+    // Пишем историю
+    await this.prisma.projectStatusHistory.create({
+      data: {
+        projectId: project.id,
+        from: project.status as ProjectStatus,
+        to: newStatus,
+        changedById: currentUserId,
+        contractorId: project.responsibleContractorId ?? null,
+      },
+    });
+
+    return updated;
   }
 
   // ProjectsService.listAttachments

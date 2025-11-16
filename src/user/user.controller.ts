@@ -42,7 +42,7 @@ export class UserController {
       required: ['file'],
     },
   })
-  async uploadMyAvatar(@Req() req: FastifyRequest & { user?: any }) {
+  async uploadMyAvatar(@Req() req: any & { user?: any }) {
     if (!req.user?.id) {
       // если guard не проставил user
       throw new UnauthorizedException('No user in request');
