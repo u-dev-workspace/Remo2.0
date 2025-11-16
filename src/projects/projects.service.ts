@@ -372,16 +372,11 @@ export class ProjectsService {
   }
 
   private isTransitionAllowed(from: ProjectStatus, to: ProjectStatus): boolean {
-    const allowed: {
-      COMPLETED: "ARCHIVED"[];
-      PUBLISHED: (any | "ARCHIVED")[];
-      DRAFT: (any | "ARCHIVED")[];
-      ARCHIVED: any[]
-    } = {
-      DRAFT:     [ProjectStatus.OPEN, ProjectStatus.ARCHIVED],
-      PUBLISHED: [ProjectStatus.CLOSED, ProjectStatus.IN_TALK, ProjectStatus.ARCHIVED],
-      COMPLETED: [ProjectStatus.ARCHIVED],
-      ARCHIVED:  [], // из архива никуда
+    const allowed: Record<ProjectStatus, ProjectStatus[]> = {
+      [ProjectStatus.OPEN]:     [ProjectStatus.IN_TALK, ProjectStatus.CLOSED, ProjectStatus.ARCHIVED],
+      [ProjectStatus.IN_TALK]:  [ProjectStatus.CLOSED, ProjectStatus.ARCHIVED],
+      [ProjectStatus.CLOSED]:   [ProjectStatus.ARCHIVED],
+      [ProjectStatus.ARCHIVED]: [],
     };
 
     return allowed[from]?.includes(to) ?? false;
