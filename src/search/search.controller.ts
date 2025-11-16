@@ -11,7 +11,7 @@ import { JwtGuard } from '../common/guards/jwt.guard';
 
 @ApiTags('Search')
 @ApiBearerAuth('bearerAuth')
-@UseGuards(JwtGuard)// убери, если эти ручки публичные
+  // убери, если эти ручки публичные
 @Controller('api/v1')
 export class SearchController {
   constructor(private readonly service: SearchService) {}
@@ -30,6 +30,7 @@ export class SearchController {
   }
 
   // Contractors by city
+  @UseGuards(JwtGuard)
   @Get('search/contractors')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   contractors(@Query() query: SearchContractorsQueryDto,@Req() req: any ) {
