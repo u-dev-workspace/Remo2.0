@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Query, Req, UsePipes, ValidationPipe,
+  Controller, Get, Query, Req, UseGuards, UsePipes, ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
@@ -7,9 +7,11 @@ import { CityListQueryDto } from './dto/city-list.dto';
 import { CitySuggestQueryDto } from './dto/city-suggest.dto';
 import { SearchContractorsQueryDto } from './dto/search-contractors.dto';
 import { SearchProjectsQueryDto } from './dto/search-projects.dto';
+import { JwtGuard } from '../common/guards/jwt.guard';
 
 @ApiTags('Search')
-@ApiBearerAuth('bearerAuth') // убери, если эти ручки публичные
+@ApiBearerAuth('bearerAuth')
+@UseGuards(JwtGuard)// убери, если эти ручки публичные
 @Controller('api/v1')
 export class SearchController {
   constructor(private readonly service: SearchService) {}
@@ -31,7 +33,7 @@ export class SearchController {
   @Get('search/contractors')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   contractors(@Query() query: SearchContractorsQueryDto,@Req() req: any ) {
-    return this.service.searchContractors(query, req.user?.id);
+    return this.service.searchContractors(query, req?.user?.id);
   }
 
   // Projects by city

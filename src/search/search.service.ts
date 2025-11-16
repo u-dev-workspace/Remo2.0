@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { CityListQueryDto } from './dto/city-list.dto';
 import { CitySuggestQueryDto } from './dto/city-suggest.dto';
@@ -9,7 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class SearchService {
   constructor(private readonly prisma: PrismaService) {}
-
+  private readonly logger = new Logger(SearchService.name);
   // -------- Cities --------
   async listCities(dto: CityListQueryDto) {
     const take = Math.min(Math.max(dto.take ?? 100, 1), 500);
@@ -64,7 +64,7 @@ export class SearchService {
   // -------- Contractors by city --------
   async searchContractors(
     dto: SearchContractorsQueryDto,
-    currentUserId?: string, // id текущего пользователя
+    currentUserId: string,
   ) {
     const take = Math.min(Math.max(dto.take ?? 20, 1), 100);
 
@@ -76,9 +76,17 @@ export class SearchService {
     }
 
     const where: Prisma.ContractorWhereInput = {};
+
     if (cityId) {
       where.cityId = cityId;
     }
+
+
+      where.user = { id: { not: currentUserId } };
+    this.logger.debug(
+      `Contractor userId is -> ` + currentUserId,
+    );
+
 
     const items = await this.prisma.contractor.findMany({
       where,
@@ -101,16 +109,11 @@ export class SearchService {
       },
     });
 
-    // 🔥 убираем из результатов исполнителя, если он совпадает с текущим пользователем
-    const filteredItems = currentUserId
-      ? items.filter((c) => c.user?.id !== currentUserId)
-      : items;
+    const nextCursor = items.length === take ? items[items.length - 1].id : null;
 
-    const nextCursor =
-      filteredItems.length === take ? filteredItems[filteredItems.length - 1].id : null;
-
-    return { items: filteredItems, nextCursor };
+    return { items, nextCursor };
   }
+
 
   // -------- Projects by city --------
   async searchProjects(dto: SearchProjectsQueryDto) {
