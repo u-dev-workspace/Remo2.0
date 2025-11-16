@@ -373,14 +373,14 @@ export class ProjectsService {
 
   private isTransitionAllowed(from: ProjectStatus, to: ProjectStatus): boolean {
     const allowed: {
-      COMPLETED: "ARCHIVED"[];
-      PUBLISHED: (any | "ARCHIVED")[];
-      DRAFT: (any | "ARCHIVED")[];
+      CLOSED: "ARCHIVED"[];
+      OPEN: (any | "ARCHIVED")[];
+      IN_TALK: (any | "ARCHIVED")[];
       ARCHIVED: any[]
     } = {
-      DRAFT:     [ProjectStatus.OPEN, ProjectStatus.ARCHIVED],
-      PUBLISHED: [ProjectStatus.CLOSED, ProjectStatus.IN_TALK, ProjectStatus.ARCHIVED],
-      COMPLETED: [ProjectStatus.ARCHIVED],
+      IN_TALK:     [ProjectStatus.OPEN, ProjectStatus.ARCHIVED],
+      OPEN: [ProjectStatus.CLOSED, ProjectStatus.IN_TALK, ProjectStatus.ARCHIVED],
+      CLOSED: [ProjectStatus.ARCHIVED],
       ARCHIVED:  [], // из архива никуда
     };
 
