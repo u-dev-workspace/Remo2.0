@@ -175,7 +175,7 @@ export class ContractorAttachmentsService {
       items.map(async (i) => ({
         id: i.id,
         filename: i.filename,
-        url: await this.minio.getPresignedUrl(i.path),
+        url: "https://remo-api.centi.space/files/" + i.path,
         mimetype: i.mimetype,
         size: i.size,
         createdAt: i.createdAt,
