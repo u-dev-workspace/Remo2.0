@@ -82,7 +82,9 @@ export class RecommendationsService {
           userId: true,
           companyName: true,
           about: true,
-          cityId: true,
+          city: true,
+          user: {select:{ avatarUrl: true}},
+          ContractorAttachment:{take: 3},
           services: {
             select: {
               serviceId: true,
