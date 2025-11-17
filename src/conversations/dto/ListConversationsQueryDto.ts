@@ -1,23 +1,35 @@
+// conversations/dto/ListConversationsQueryDto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsInt, Min } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class ListConversationsQueryDto {
-  @ApiPropertyOptional({ enum: ['client', 'contractor'], description: 'Фильтр по роли (необязательно)' })
+  @ApiPropertyOptional({ default: 1 })
   @IsOptional()
-  @IsIn(['client', 'contractor'])
-  role?: 'client' | 'contractor';
-
-  @ApiPropertyOptional({ default: 20 })
-  @IsOptional()
-  @Transform(({ value }) => (value === '' ? undefined : value))
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  take?: number;
+  page?: number = 1;
 
-  @ApiPropertyOptional({ description: 'Курсор (conversationId)' })
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
+
+  @ApiPropertyOptional({ description: 'ID проекта для фильтрации' })
   @IsOptional()
   @IsString()
-  cursor?: string;
+  projectId?: string;
+
+  @ApiPropertyOptional({ enum: ['client', 'contractor'] })
+  @IsOptional()
+  @IsEnum(['client', 'contractor'])
+  role?: 'client' | 'contractor';
+
+  @ApiPropertyOptional({ description: 'Только чаты с непрочитанными сообщениями' })
+  @IsOptional()
+  @Type(() => Boolean)
+  onlyWithUnread?: boolean;
 }

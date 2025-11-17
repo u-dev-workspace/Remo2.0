@@ -180,102 +180,54 @@ export class ConversationsService {
         return { conversation, firstMessage: message };
     }
 
-    async listMyConversations(userId: string, params: ListConversationsParams) {
-        const take = Math.min(Math.max(Number(params.take) || 20, 1), 100);
+    async listMyConversations(userId: string, query: ListConversationsQueryDto) {
+        const { page = 1, limit = 20, projectId, role, onlyWithUnread } = query;
 
-        const where: Prisma.ConversationWhereInput =
-          params.role === 'client'
-            ? { clientId: userId }
-            : params.role === 'contractor'
-              ? { contractor: { userId } }
-              : { OR: [{ clientId: userId }, { contractor: { userId } }] };
+        const where: Prisma.ConversationWhereInput = {
+            // пользователь — участник
+            OR: [
+                { clientId: userId },
+                { contractor: { userId } },
+            ],
+        };
 
-        type Row = Prisma.ConversationGetPayload<{
-            select: {
-                id: true;
-                projectId: true;
-                clientId: true;
-                contractorId: true;
-                project: { select: { id: true; title: true; coverAttachmentId: true } };
-                client: { select: { id: true; name: true; avatarUrl: true } };
-                contractor: {
-                    select: {
-                        id: true;
-                        user: { select: { id: true; name: true; avatarUrl: true } };
-                    };
-                };
-                messages: {
-                    select: {
-                        id: true;
-                        createdAt: true;
-                        senderId: true;
-                        text: true;
-                        attachmentUrl: true;
-                        readAt: true;
-                    };
-                };
+        if (projectId) {
+            where.projectId = projectId;
+        }
+
+        if (role === 'client') {
+            where.clientId = userId;
+        }
+        if (role === 'contractor') {
+            where.contractor = { userId };
+        }
+
+        if (onlyWithUnread) {
+            where.messages = {
+                some: {
+                    readAt: null,
+                    senderId: { not: userId },
+                },
             };
-        }>;
+        }
 
-        const rows: Row[] = await this.prisma.conversation.findMany({
-            where,
-            take,
-            // тут ИСПОЛЬЗУЕМ реальное поле модели, например createdAt
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                projectId: true,
-                clientId: true,
-                updatedAt: true,
-                contractorId: true,
-                project: { select: { id: true, title: true, coverAttachmentId: true } },
-                client: { select: { id: true, name: true, avatarUrl: true } },
-                contractor: {
-                    select: {
-                        id: true,
-                        user: { select: { id: true, name: true, avatarUrl: true } },
-                    },
+        const [items, total] = await this.prisma.$transaction([
+            this.prisma.conversation.findMany({
+                where,
+                orderBy: { updatedAt: 'desc' }, // или по lastMessageAt
+                skip: (page - 1) * limit,
+                take: limit,
+                include: {
+                    project: true,
+                    contractor: { include: { user: true } },
+                    client: true,
+                    _count: { select: { messages: true } },
                 },
-                messages: {
-                    select: {
-                        id: true,
-                        createdAt: true,
-                        senderId: true,
-                        text: true,
-                        attachmentUrl: true,
-                        readAt: true,
-                    },
-                    orderBy: { createdAt: 'desc' },
-                    take: 1, // берём только последний месседж
-                },
-            },
-        });
+            }),
+            this.prisma.conversation.count({ where }),
+        ]);
 
-        const convIds = rows.map((c) => c.id);
-        if (!convIds.length) return [];
-
-        // один запрос, который считает непрочитанные по всем диалогам сразу
-        const unreadGrouped = await this.prisma.message.groupBy({
-            by: ['conversationId'],
-            where: {
-                conversationId: { in: convIds },
-                readAt: null,
-                senderId: { not: userId },
-            },
-            _count: { _all: true },
-        });
-
-        const unreadMap = new Map<string, number>(
-          unreadGrouped.map((row) => [row.conversationId, row._count._all]),
-        );
-
-        // мапим в результат, добавляя unread
-        const conversationsWithUnread = rows.map((conv) => ({
-            ...conv,
-            unread: unreadMap.get(conv.id) ?? 0,
-        }));
-
-        return conversationsWithUnread;
+        return { items, total, page, limit };
     }
 
     async readMessage(messageId: string){
