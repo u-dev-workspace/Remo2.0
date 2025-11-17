@@ -147,6 +147,7 @@ export class ReviewsService {
       include: {
         contractor: { select: { id: true, companyName: true } },
         project: { select: { id: true, title: true } },
+        attachments: true,
       },
     });
   }

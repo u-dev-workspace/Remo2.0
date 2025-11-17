@@ -38,7 +38,7 @@ export class ContractorProfileService {
     return contractor;
   }
 
-  async getProfileByContractorId(contractorId: string) {
+  async   getProfileByContractorId(contractorId: string) {
     console.log('userId =>', contractorId);
     const contractor = await this.prisma.contractor.findUnique({
       where: { id: contractorId },
