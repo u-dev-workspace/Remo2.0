@@ -98,7 +98,7 @@ export class AuthService {
         })
     }
     private async issueTokens(userId: string, role: string) {
-        const access = await this.jwt.signAsync({ sub: userId, role }, { expiresIn: '15m' });
+        const access = await this.jwt.signAsync({ sub: userId, role }, { expiresIn: '24h' });
         const refresh = await this.jwt.signAsync({ sub: userId, role, typ: 'refresh' }, { expiresIn: '30d' });
         return { accessToken: access, refreshToken: refresh };
     }
