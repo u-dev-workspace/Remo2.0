@@ -133,6 +133,7 @@ export class ReviewsService {
       include: {
         user: { select: { id: true, name: true, avatarUrl: true } },
         project: { select: { id: true, title: true } },
+        attachments: true,
       },
     });
   }
