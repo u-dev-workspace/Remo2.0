@@ -44,7 +44,7 @@ export class ContractorProfileService {
       where: { id: contractorId },
       include: {
         categories: true,
-        ContractorAttachment: { take: 3 },
+        ContractorAttachment:true,
         city:{
           select:{
             id:true,
