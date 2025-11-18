@@ -327,6 +327,10 @@ model Message {
 
   text          String?
   attachmentUrl String?
+  fileUrl       String? // путь в MinIO
+  fileName      String?
+  fileMime      String?
+  fileSize      Int?
   readAt        DateTime?
 
   @@index([conversationId, createdAt])

@@ -1,15 +1,32 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+    Injectable,
+    ForbiddenException,
+    NotFoundException,
+    BadRequestException,
+    InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Conversation, Message, Prisma } from '@prisma/client';
 
 import now = jest.now;
 import { NotificationsService } from '../notifications/notifications.service';
+import { ListConversationsQueryDto } from './dto/ListConversationsQueryDto';
+import { MinioService } from '../minio/minio.service';
 type ListConversationsParams = {
     role?: 'client' | 'contractor';
     take?: number;
     cursor?: string; // conversationId
 };
+type ChatFile = {
+    text?: string;
+    filename: string;
+    mimetype: string;
+    buffer: Buffer;
+    size: number;
+};
+
+import { randomUUID } from 'crypto';
 @Injectable()
 export class ConversationsService {
 
@@ -17,6 +34,7 @@ export class ConversationsService {
       private readonly prisma: PrismaService,
       private readonly events: EventEmitter2,
       private readonly notifications: NotificationsService,
+      private readonly minio: MinioService,
     ) {}
 
     /**
@@ -133,6 +151,56 @@ export class ConversationsService {
         return message;
     }
 
+    private async ensureParticipant(conversationId: string, userId: string) {
+        const conv = await this.prisma.conversation.findUnique({
+            where: { id: conversationId },
+            select: {
+                id: true,
+                clientId: true,
+                contractor: { select: { userId: true } },
+            },
+        });
+        if (!conv) throw new NotFoundException('CONVERSATION_NOT_FOUND');
+        const ok =
+          conv.clientId === userId || conv.contractor?.userId === userId;
+        if (!ok) throw new ForbiddenException('ACCESS_DENIED');
+        return conv;
+    }
+    chatFolder = "chats"
+    async sendMessageWithFile(
+      conversationId: string,
+      senderUserId: string,
+      fileData: ChatFile,
+    ) {
+        const { text, filename, mimetype, buffer, size } = fileData;
+
+        if (!buffer && (!text || !text.trim())) {
+            throw new BadRequestException('EMPTY_MESSAGE');
+        }
+
+        await this.ensureParticipant(conversationId, senderUserId);
+
+        const safeName =
+          filename?.replace(/[^\p{L}\p{N}\.\-_ ]/gu, '_') || 'file';
+        const unique = `${Date.now()}_${randomUUID()}`.slice(0, 36);
+        const finalName = `${unique}_${safeName}`;
+        const objectPath = `${this.chatFolder}/${conversationId}/${finalName}`;
+
+        await this.minio.uploadBuffer(objectPath, buffer, mimetype);
+
+        const attachmentUrl = `https://remo-api.centi.space/files/${objectPath}`;
+
+        const message = await this.prisma.message.create({
+            data: {
+                conversationId,
+                senderId: senderUserId,
+                text: text || "",
+                attachmentUrl,
+            },
+        });
+
+        return message;
+    }
     async startConversation(
       projectId: string,
       contractorId: string,

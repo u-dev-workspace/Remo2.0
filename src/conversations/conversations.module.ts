@@ -9,10 +9,12 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { MinioModule } from '../minio/minio.module';
 
 
 @Module({
     imports: [
+        MinioModule,
         AuthModule,
         NotificationsModule,// <- здесь появится JwtService
         EventEmitterModule.forRoot(), // <- для @OnEvent

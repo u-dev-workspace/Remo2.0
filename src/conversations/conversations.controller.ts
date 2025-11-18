@@ -1,15 +1,36 @@
 import {
-    Controller, Get, Post, Param, Body, UseGuards, Req, Query, UsePipes, ValidationPipe,
+    Controller,
+    Get,
+    Post,
+    Param,
+    Body,
+    UseGuards,
+    Req,
+    Query,
+    UsePipes,
+    ValidationPipe,
+    UseInterceptors,
+    UploadedFile,
+    BadRequestException,
 } from '@nestjs/common';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { ConversationsService } from './conversations.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { ListMessagesQueryDto } from './dto/list-messages.query.dto';
-import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiProperty, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { StartConversationDto } from './dto/StartConversationDto';
 import { ListConversationsQueryDto } from './dto/ListConversationsQueryDto';
 import { TimelineQueryDto } from './dto/TimelineQueryDto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import type{ FastifyRequest } from 'fastify';
+export class SendMessageWithFileDto {
+    @ApiProperty({ required: false })
+    text?: string;
 
+    @ApiProperty({ type: 'string', format: 'binary', required: true })
+    file: any;
+}
 @ApiTags('Conversation')
 @ApiBearerAuth('bearerAuth')
 @UseGuards(JwtGuard)
@@ -32,15 +53,49 @@ export class ConversationsController {
         return { items, page, limit };
     }
 
-    @Post('messages/:conversationId')
-    @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-    async send(
+    @Post('messages/:conversationId/file')
+    @ApiConsumes('multipart/form-data')
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                text: { type: 'string' },
+                file: { type: 'string', format: 'binary' },
+            },
+            required: ['file'],
+        },
+    })
+    async sendWithFile(
       @Param('conversationId') conversationId: string,
-      @Body() dto: CreateMessageDto,
-      @Req() req: any,
+      @Req() req: FastifyRequest,
     ) {
-        return this.service.sendMessage(conversationId, req.user?.id, dto.text);
+        const user = (req as any).user;
+
+        const filePart = await (req as any).file(); // MultipartFile
+        if (!filePart) {
+            throw new BadRequestException('FILE_REQUIRED');
+        }
+
+        const buffer = await filePart.toBuffer();
+
+        // ❗ так мы реально достанем text, который ты отправляешь через Swagger
+        const textFromFields =
+          (filePart.fields?.text?.value as string | undefined) ??
+          ((req.body as any)?.text as string | undefined);
+
+        return this.service.sendMessageWithFile(
+          conversationId,
+          user.id,
+          {
+              text: textFromFields,
+              filename: filePart.filename,
+              mimetype: filePart.mimetype,
+              buffer,
+              size: buffer.byteLength,
+          },
+        );
     }
+
 
     @Post('start')
     @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
