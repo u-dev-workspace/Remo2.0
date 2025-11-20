@@ -145,7 +145,7 @@ export class SearchService {
         city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
         client: { select: { id: true, name: true } },
         categories: { select: { id: true, name: true } },
-        services: true,
+        services: { select: {service: true} },
       },
     });
 
