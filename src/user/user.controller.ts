@@ -25,12 +25,12 @@ class SetAvatarUrlDto {
 
 @ApiTags('Users')
 @ApiBearerAuth('bearerAuth')
-@UseGuards(JwtGuard)
 @Controller('api/v1/users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   /** Загрузка аватарки текущего пользователя (multipart/form-data, Fastify) */
+  @UseGuards(JwtGuard)
   @Post('me/avatar')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -52,6 +52,7 @@ export class UserController {
 
 
   /** Установка аватарки по готовому URL */
+  @UseGuards(JwtGuard)
   @Post('me/avatar-url')
   @ApiBody({ type: SetAvatarUrlDto })
   async setMyAvatarUrl(@Body() body: SetAvatarUrlDto, @Req() req: any) {
@@ -59,15 +60,17 @@ export class UserController {
   }
 
   /** Очистить аватарку */
+  @UseGuards(JwtGuard)
   @Delete('me/avatar')
   async clearMyAvatar(@Req() req: any) {
     return this.userService.clearMyAvatar(req.user.userId);
   }
-
+  @UseGuards(JwtGuard)
   @Patch('my/city/:cityId')
   async changeCity(@Req() req: any, @Param('cityId') cityId: string) {
     return this.userService.changeCity(req.user?.id, cityId);
   }
+  @UseGuards(JwtGuard)
   @Patch('my/city/contractor/:cityId')
   async changeCityForContractor(@Req() req: any, @Param('cityId') cityId: string) {
     return this.userService.changeCityForContractor(req.user?.id, cityId);
