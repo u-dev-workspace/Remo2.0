@@ -9,11 +9,10 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Favorites')
 @ApiBearerAuth("bearerAuth")
-@UseGuards(JwtGuard)
 @Controller('favorites')
 export class FavoritesController {
   constructor(private readonly favorites: FavoritesService) {}
-
+  @UseGuards(JwtGuard)
   @Post()
   @ApiOperation({ summary: 'Добавить проект в избранное' })
   async add(@Body() dto: AddFavoriteDto, @CurrentUser() user: any) {
@@ -21,7 +20,7 @@ export class FavoritesController {
     const userId = user?.id ?? user?.sub ?? user?.userId;
     return this.favorites.add(userId, dto);
   }
-
+  @UseGuards(JwtGuard)
   @Delete(':projectId')
   @ApiOperation({ summary: 'Удалить проект из избранного' })
   async remove(@Param('projectId') projectId: string, @CurrentUser() user: any) {
@@ -37,7 +36,7 @@ export class FavoritesController {
     const userId = user?.id ?? user?.sub ?? user?.userId;
     return this.favorites.list(userId, query);
   }
-
+  @UseGuards(JwtGuard)
   @Post("/contractor/:contractorId")
   @ApiOperation({ summary: 'Добавить проект в избранное' })
   async addContractor(@Param('contractorId') contractorId: string, @CurrentUser() user: any) {
@@ -45,7 +44,7 @@ export class FavoritesController {
     const userId = user?.id ?? user?.sub ?? user?.userId;
     return this.favorites.addContractor(userId, contractorId);
   }
-
+  @UseGuards(JwtGuard)
   @Delete('/contractor/:contractorId')
   @ApiOperation({ summary: 'Удалить проект из избранного' })
   async removeContractor(@Param('contractorId') contractorId: string, @CurrentUser() user: any) {

@@ -16,7 +16,6 @@ import { JwtGuard } from '../common/guards/jwt.guard';
 @ApiTags('Recommendations')
 @Controller('recommendations')
 @ApiBearerAuth('bearerAuth')
-@UseGuards(JwtGuard)
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class RecommendationsController {
   constructor(private readonly service: RecommendationsService) {}
@@ -33,7 +32,7 @@ export class RecommendationsController {
       take: Number.isFinite(Number(take)) ? Number(take) : 20,
     });
   }
-
+  @UseGuards(JwtGuard)
   @Get('projects/by-contractor')
   @ApiOperation({ summary: 'Рекомендовать проекты по услугам исполнителя' })
   @ApiOkResponse({ description: 'Список проектов (matchScore убыв.)' })
