@@ -87,9 +87,14 @@ export class AuthService {
     }
 
     async getUnAuthConractorRec(){
-        return await this.prisma.contractor.findMany({
-            take:4
-        })
+        return this.prisma.contractor.findMany({
+            take: 4,
+            include: {
+                city: { select: { nameRu: true, nameKk: true, nameEn: true, } },
+                user: { select: { avatarUrl: true, name: true } }
+
+            },
+        });
     }
 
     async getUnAuthProjectRec(){
