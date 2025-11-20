@@ -51,7 +51,7 @@ export class FavoritesController {
     const userId = user?.id ?? user?.sub ?? user?.userId;
     return this.favorites.removeContractor(userId, contractorId);
   }
-
+  @UseGuards(JwtGuard)
   @Get("/contactors")
   async listContractor(
     @Query(new ValidationPipe({ transform: true, whitelist: true })) query: ListFavoritesDto,
