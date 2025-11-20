@@ -20,10 +20,9 @@ import { SetContractorServicesDto } from './dto/set-contractor-services.dto';
 @ApiTags('Contractor Profile') // ← появится группа в Swagger
 @ApiBearerAuth('bearerAuth')
 @Controller('api/v1/contractor-profile')
-@UseGuards(JwtGuard)
 export class ContractorProfileController {
   constructor(private readonly contractorProfileService: ContractorProfileService) {}
-
+  @UseGuards(JwtGuard)
   @Get('me')
   async getProfile(@Req() req) {
     const userId = req.user?.id;
@@ -34,7 +33,7 @@ export class ContractorProfileController {
   async getProfileById(@Req() req: any, @Param('contractorId') contractorId : string ) {
     return this.contractorProfileService.getProfileByContractorId(contractorId);
   }
-
+  @UseGuards(JwtGuard)
   @Patch('me')
   @ApiOperation({ summary: 'Обновить профиль исполнителя (companyName, about, и опционально ПОЛНАЯ замена категорий)' })
   @ApiResponse({ status: 200, description: 'Профиль обновлён' })
@@ -42,7 +41,7 @@ export class ContractorProfileController {
     const userId = req.user.id; // или req.user.sub
     return this.contractorProfileService.updateProfile(userId, data);
   }
-  
+  @UseGuards(JwtGuard)
   @Delete('me')
   async deleteProfile(@Req() req) {
     const userId = req.user?.id;
