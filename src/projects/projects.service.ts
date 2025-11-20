@@ -7,7 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash  } from 'crypto';
 import { join, extname } from 'path';
 import fs, { promises as fsp, createWriteStream } from 'fs';
 import { pipeline } from 'stream';
@@ -146,6 +146,9 @@ export class ProjectsService {
         attachments: { orderBy: { sortOrder: 'asc' } },
         coverAttachment: true,
         categories: true,
+        _count: {
+          select: { ProjectView: true }, // ← только количество
+        },
         services: {
           select: {
             id: true,
@@ -533,6 +536,9 @@ export class ProjectsService {
         status: true,
         cityId: true,
         area: true,
+        _count: {
+          select: { ProjectView: true }, // ← только количество
+        },
         services: {
           select: {
             id: true,
@@ -919,5 +925,75 @@ export class ProjectsService {
       })))
     );
   }
+
+  /**
+   * Регистрирует просмотр проекта.
+   * Считается максимум 1 раз на userId или fingerprint.
+   */
+  async registerViewOnce(
+    projectId: string,
+    opts: { userId?: string | null; ip?: string | null; userAgent?: string | null },
+  ) {
+    const { userId, ip, userAgent } = opts;
+
+    // проверяем, что проект существует
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true },
+    });
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
+
+    let fingerprint: string | null = null;
+
+    // если пользователь не залогинен — считаем fingerprint по IP+UA
+    if (!userId && ip && userAgent) {
+      fingerprint = createHash('sha256')
+        .update(`${ip}|${userAgent}`)
+        .digest('hex');
+    }
+
+    // 1) залогиненный пользователь → уникальная запись по (projectId, userId)
+    if (userId) {
+      await this.prisma.projectView.upsert({
+        where: {
+          projectId_userId: {
+            projectId,
+            userId,
+          },
+        },
+        update: {},
+        create: {
+          projectId,
+          userId,
+        },
+      });
+    }
+    // 2) гость → уникальная запись по (projectId, fingerprint)
+    else if (fingerprint) {
+      await this.prisma.projectView.upsert({
+        where: {
+          projectId_fingerprint: {
+            projectId,
+            fingerprint,
+          },
+        },
+        update: {},
+        create: {
+          projectId,
+          fingerprint,
+        },
+      });
+    }
+    // если нет ни userId, ни fingerprint — просто не считаем, но и не падаем
+
+    const views = await this.prisma.projectView.count({
+      where: { projectId },
+    });
+
+    return { projectId, views };
+  }
+
 
 }

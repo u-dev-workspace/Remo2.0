@@ -174,4 +174,27 @@ export class ProjectsController {
     const userId = req.user?.id;
     return this.service.changeStatus(projectId, dto.status, userId);
   }
+  @UseGuards(JwtGuard)
+  @Post(':projectId/views')
+  @ApiOperation({
+    summary: 'Зарегистрировать просмотр проекта (учитывается только 1 раз на пользователя/устройство)',
+  })
+  async registerView(
+    @Param('projectId') projectId: string,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id ?? null;
+
+    // ip из заголовков или из req.ip
+    const xff = req.headers['x-forwarded-for'] as string | undefined;
+    const ip = xff?.split(',')[0]?.trim() || req.ip || null;
+
+    const userAgent = (req.headers['user-agent'] as string | undefined) || null;
+
+    return this.service.registerViewOnce(projectId, {
+      userId,
+      ip,
+      userAgent,
+    });
+  }
 }

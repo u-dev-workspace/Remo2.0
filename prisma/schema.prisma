@@ -79,6 +79,7 @@ model User {
   review               Review[]
   Notification         Notification[]
   ProjectStatusHistory ProjectStatusHistory[]
+  ProjectView          ProjectView[]
 }
 
 model Contractor {
@@ -203,7 +204,8 @@ model Project {
   ProjectStatusHistory ProjectStatusHistory[]
 
   responsibleContractorId String?
-  responsibleContractor   Contractor? @relation(fields: [responsibleContractorId], references: [id], onDelete: SetNull)
+  responsibleContractor   Contractor?   @relation(fields: [responsibleContractorId], references: [id], onDelete: SetNull)
+  ProjectView             ProjectView[]
 
   @@index([clientId])
   @@index([propertyType])
@@ -477,4 +479,22 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model ProjectView {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // для анонимных: хэш IP + User-Agent
+  fingerprint String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@unique([projectId, fingerprint])
+  @@index([projectId])
 }
