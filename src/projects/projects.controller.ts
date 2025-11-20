@@ -124,7 +124,7 @@ export class ProjectsController {
   }
 
 
-
+  @UseGuards(JwtGuard)
   @Get()
   async list(
     @Query(new ValidationPipe({ transform: true, whitelist: true }))
@@ -152,7 +152,7 @@ export class ProjectsController {
     @Param('projectId') projectId: string,
     @Req() req: any,
   ) {
-    const userId = req.user?.id;
+    const userId = req?.user?.id;
     return this.service.uploadFile(projectId, userId, req);
   }
 
