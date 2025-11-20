@@ -39,11 +39,11 @@ export class ChangeProjectStatusDto {
 @ApiTags('Project') // ← появится группа в Swagger
 @ApiBearerAuth('bearerAuth')
 @Controller('projects')
-@UseGuards(JwtGuard)
 export class ProjectsController {
   constructor(private readonly service: ProjectsService) {}
 
   // В реальном проекте бери clientId из auth (req.user.sub)
+  @UseGuards(JwtGuard)
   @Post()
   @ApiOperation({ summary: 'Создать проект' })
   @ApiCreatedResponse({ description: 'Проект создан' })
@@ -58,7 +58,7 @@ export class ProjectsController {
   async getOne(@Param('projectId') projectId: string) {
     return this.service.findOne(projectId);
   }
-
+  @UseGuards(JwtGuard)
   @Patch(':id')
   async update(
     @Param('id') id: string,
@@ -68,7 +68,7 @@ export class ProjectsController {
   ) {
     return this.service.update(id, dto, req.user?.id);
   }
-
+  @UseGuards(JwtGuard)
   @Delete(':projectId')
   @ApiOperation({ summary: 'Удалить проект' })
   @ApiOkResponse()
@@ -77,6 +77,7 @@ export class ProjectsController {
   }
 
   // -------- Upload (multipart) --------
+  @UseGuards(JwtGuard)
   @Post(':projectId/attachments/upload')
   @ApiOperation({
     summary: 'Загрузить картинку как вложение (сохраняет файл на диск)',
@@ -105,7 +106,7 @@ export class ProjectsController {
   listAttachments(@Param('projectId') projectId: string) {
     return this.service.listAttachments(projectId);
   }
-
+  @UseGuards(JwtGuard)
   @Patch(':projectId/cover/:attachmentId')
   setCover(
     @Param('projectId') projectId: string,
@@ -113,7 +114,7 @@ export class ProjectsController {
   ) {
     return this.service.setCover(projectId, attachmentId);
   }
-
+  @UseGuards(JwtGuard)
   @Delete(':projectId/attachments/:attachmentId')
   deleteAttachment(
     @Param('projectId') projectId: string,
@@ -133,7 +134,7 @@ export class ProjectsController {
     const userId = req.user?.id ?? null;
     return this.service.listProjects({ ...query, userId }); // ← один аргумент
   }
-
+  @UseGuards(JwtGuard)
   @Post(':projectId/files')
   @ApiOperation({ summary: 'Upload non-image file (document) to project' })
   @ApiConsumes('multipart/form-data')
@@ -156,12 +157,13 @@ export class ProjectsController {
   }
 
   // Список ТОЛЬКО документов (без image/*)
+
   @Get(':projectId/files')
   @ApiOperation({ summary: 'List project files (non-image attachments)' })
   listProjectFiles(@Param('projectId') projectId: string) {
     return this.service.listFiles(projectId);
   }
-
+  @UseGuards(JwtGuard)
   @Patch(':projectId/status')
   @ApiOperation({ summary: 'Смена статуса проекта' })
   async changeStatus(
