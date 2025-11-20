@@ -53,6 +53,16 @@ export class ConversationsController {
         return { items, page, limit };
     }
 
+    @Post('messages/:conversationId')
+    @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+    async send(
+      @Param('conversationId') conversationId: string,
+      @Body() dto: CreateMessageDto,
+      @Req() req: any,
+    ) {
+        return this.service.sendMessage(conversationId, req.user?.id, dto.text);
+    }
+
     @Post('messages/:conversationId/file')
     @ApiConsumes('multipart/form-data')
     @ApiBody({
