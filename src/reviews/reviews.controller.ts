@@ -25,7 +25,7 @@ import { MinioService } from '../minio/minio.service';
 @ApiTags('Reviews')
 @ApiBearerAuth('bearerAuth')
 @Controller('reviews')
-@UseGuards(JwtGuard)
+
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService,
   private readonly minio: MinioService
@@ -36,6 +36,7 @@ export class ReviewsController {
    * Body: { contractorId, projectId, rating, text }
    * userId берём из JWT
    */
+  @UseGuards(JwtGuard)
   @Post()
   @ApiOperation({ summary: 'Создать или обновить отзыв по исполнителю и проекту' })
   @ApiCreatedResponse({
@@ -95,6 +96,7 @@ export class ReviewsController {
    * GET /reviews/me
    * Все отзывы, которые оставил текущий пользователь (и PENDING, и PUBLISHED)
    */
+  @UseGuards(JwtGuard)
   @Get('me')
   @ApiOperation({ summary: 'Получить отзывы, которые оставил текущий пользователь' })
   @ApiOkResponse({ description: 'Список отзывов текущего пользователя' })
@@ -102,7 +104,7 @@ export class ReviewsController {
     const userId = req.user?.id;
     return this.reviewsService.getMyReviews(userId);
   }
-
+  @UseGuards(JwtGuard)
   @Post('with-files')
   @ApiOperation({ summary: 'Создать отзыв с фотографиями' })
   @ApiConsumes('multipart/form-data')
