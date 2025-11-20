@@ -30,7 +30,7 @@ export class SearchController {
   }
 
   // Contractors by city
-  @UseGuards(JwtGuard)
+
   @Get('search/contractors')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   contractors(@Query() query: SearchContractorsQueryDto,@Req() req: any ) {

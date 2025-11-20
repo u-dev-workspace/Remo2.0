@@ -99,6 +99,7 @@ export class SearchService {
         city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
         user: { select: { id: true, name: true, avatarUrl: true } },
         companyName: true,
+        ContractorAttachment: {take: 3},
         services: {
           select: {
             service: { select: { name: true } },
@@ -140,9 +141,11 @@ export class SearchService {
         cityId: true,
         createdAt: true,
         coverAttachment: { select: { id: true, url: true } },
+        attachments: { take:3 },
         city: { select: { id: true, slug: true, nameRu: true, nameKk: true, nameEn: true } },
         client: { select: { id: true, name: true } },
         categories: { select: { id: true, name: true } },
+        services: true,
       },
     });
 
