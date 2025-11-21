@@ -27,7 +27,7 @@ export class FavoritesController {
     const userId = user?.id ?? user?.sub ?? user?.userId;
     return this.favorites.remove(userId, projectId);
   }
-
+  @UseGuards(JwtGuard)
   @Get()
   async list(
     @Query(new ValidationPipe({ transform: true, whitelist: true })) query: ListFavoritesDto,
