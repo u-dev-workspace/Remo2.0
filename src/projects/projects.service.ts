@@ -379,7 +379,7 @@ export class ProjectsService {
       [ProjectStatus.OPEN]:     [ProjectStatus.IN_TALK, ProjectStatus.CLOSED, ProjectStatus.ARCHIVED],
       [ProjectStatus.IN_TALK]:  [ProjectStatus.CLOSED, ProjectStatus.ARCHIVED],
       [ProjectStatus.CLOSED]:   [ProjectStatus.ARCHIVED],
-      [ProjectStatus.ARCHIVED]: [],
+      [ProjectStatus.ARCHIVED]: [ProjectStatus.OPEN],
     };
 
     return allowed[from]?.includes(to) ?? false;
