@@ -2,6 +2,7 @@
 import { Controller, Get, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AttachmentRouterService } from './attachment-router.service';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @Controller('files')
 export class AttachmentRouterController {
@@ -9,6 +10,7 @@ export class AttachmentRouterController {
 
   // Покрывает все пути после /files/*
   @Get('*')
+  @SkipThrottle()
   async serve(@Req() req: FastifyRequest, @Res() res: FastifyReply) {
     const params = (req.params || {}) as any;
 

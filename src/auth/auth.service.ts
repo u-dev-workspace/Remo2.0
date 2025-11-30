@@ -102,9 +102,86 @@ export class AuthService {
             take:4
         })
     }
+    // private async issueTokens(userId: string, role: string) {
+    //     const access = await this.jwt.signAsync({ sub: userId, role }, { expiresIn: '24h' });
+    //     const refresh = await this.jwt.signAsync({ sub: userId, role, typ: 'refresh' }, { expiresIn: '30d' });
+    //     return { accessToken: access, refreshToken: refresh };
+    // }
+
+    // ======= базовый профиль пользователя для ответов микросервиса =======
+    async getUserProfile(userId: string) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                email: true,
+                role: true,
+                name: true,
+                City: true,
+            },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        return user;
+    }
+
+    // ======= проверка access-токена =======
+    async validateAccessToken(accessToken: string) {
+        try {
+            const payload = await this.jwt.verifyAsync(accessToken); // секрет уже задан в JwtModule
+            const user = await this.getUserProfile(payload.sub);
+
+            return {
+                isAuthenticated: true,
+                user,
+            };
+        } catch (e) {
+            // здесь без проброса исключения — микросервису удобнее иметь флаг
+            return {
+                isAuthenticated: false,
+                user: null,
+            };
+        }
+    }
+
+    // ======= рефреш токена =======
+    async refreshTokens(refreshToken: string) {
+        let payload: any;
+        try {
+            payload = await this.jwt.verifyAsync(refreshToken);
+        } catch {
+            throw new UnauthorizedException('Invalid refresh token');
+        }
+
+        // защита от использования access-токена как refresh
+        if (payload.typ !== 'refresh') {
+            throw new UnauthorizedException('Invalid token type');
+        }
+
+        const user = await this.getUserProfile(payload.sub);
+
+        const tokens = await this.issueTokens(user.id, user.role);
+
+        return {
+            isAuthenticated: true,
+            user,
+            ...tokens, // { accessToken, refreshToken }
+        };
+    }
+
+    // ======= уже был у тебя =======
     private async issueTokens(userId: string, role: string) {
-        const access = await this.jwt.signAsync({ sub: userId, role }, { expiresIn: '24h' });
-        const refresh = await this.jwt.signAsync({ sub: userId, role, typ: 'refresh' }, { expiresIn: '30d' });
+        const access = await this.jwt.signAsync(
+          { sub: userId, role },
+          { expiresIn: '24h' },
+        );
+        const refresh = await this.jwt.signAsync(
+          { sub: userId, role, typ: 'refresh' },
+          { expiresIn: '30d' },
+        );
         return { accessToken: access, refreshToken: refresh };
     }
 }

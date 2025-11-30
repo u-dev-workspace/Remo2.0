@@ -15,3 +15,13 @@ export const LoginSchema = z.object({
     password: z.string().min(8),
 });
 export class LoginDto extends createZodDto(LoginSchema) {}
+
+export const ValidateTokenSchema = z.object({
+    accessToken: z.string().min(10),
+});
+export class ValidateTokenDto extends createZodDto(ValidateTokenSchema) {}
+
+export const RefreshTokenSchema = z.object({
+    refreshToken: z.string().min(10),
+});
+export class RefreshTokenDto extends createZodDto(RefreshTokenSchema) {}

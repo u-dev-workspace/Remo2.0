@@ -1,9 +1,10 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto } from './dto';
+import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { JwtGuard } from '../common/guards/jwt.guard';
 
+import { MessagePattern, Payload } from '@nestjs/microservices';
 @Controller('api/v1/auth')
 export class AuthController {
     constructor(private auth: AuthService) {}
@@ -26,6 +27,37 @@ export class AuthController {
     async me(@Req() req: any) {
         const userId: string = req.user?.sub ?? req.user?.id;
         return this.auth.getPublicById(userId);
+    }
+
+    // ======== HTTP: текущий пользователь по access-токену ========
+    @Get('me/profile')
+    @UseGuards(JwtGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get current user profile' })
+    @ApiOkResponse({ description: 'Basic user info' })
+    meprof(@Req() req: any) {
+        // req.user.id прилетает из JwtStrategy.validate
+        return this.auth.getUserProfile(req.user.id);
+    }
+
+    // ======== HTTP: рефреш токенов ========
+    @Post('refresh')
+    @ApiOperation({ summary: 'Refresh access/refresh tokens' })
+    @ApiOkResponse({ description: 'New token pair and user' })
+    refresh(@Body() dto: RefreshTokenDto) {
+        return this.auth.refreshTokens(dto.refreshToken);
+    }
+
+    // ======== МИКРОСЕРВИСЫ: проверка токена ========
+    @MessagePattern({ cmd: 'auth.validate' })
+    validateForMs(@Payload() data: { accessToken: string }) {
+        return this.auth.validateAccessToken(data.accessToken);
+    }
+
+    // ======== МИКРОСЕРВИСЫ: рефреш ========
+    @MessagePattern({ cmd: 'auth.refresh' })
+    refreshForMs(@Payload() data: { refreshToken: string }) {
+        return this.auth.refreshTokens(data.refreshToken);
     }
 
     @Get('contractors')

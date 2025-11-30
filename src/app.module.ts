@@ -30,7 +30,7 @@ import { AttachmentRouterModule } from './attachment-router/attachment-router.mo
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
-        ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+        ThrottlerModule.forRoot([{ ttl: 60, limit: 500 }]),
         PrismaModule,
         AuthModule,
         CategoriesModule,
