@@ -8,11 +8,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// ========= Enums =========
 enum UserRole {
   CLIENT
   CONTRACTOR
   ADMIN
+  BUSINESS
 }
 
 enum ProjectStatus {
@@ -25,6 +25,18 @@ enum ProjectStatus {
 enum Plan {
   FREE
   PRO
+}
+
+enum CompanyPurpose {
+  LOGISTICS
+  SERVICES
+  GOODS
+}
+
+enum CompanyRole {
+  HEAD // владелец / создатель
+  MANAGEMENT // менеджмент
+  EMPLOYEE // обычный сотрудник
 }
 
 model City {
@@ -61,10 +73,8 @@ model User {
 
   contractor Contractor?
 
-  // one-to-many: user -> projects (как «клиент/владелец»)
   projects Project[] @relation("UserProjects")
 
-  // one-to-many: user -> messages (как «sender»)
   messages Message[] @relation("UserMessages")
 
   plan                 Plan                   @default(FREE)
@@ -80,6 +90,8 @@ model User {
   Notification         Notification[]
   ProjectStatusHistory ProjectStatusHistory[]
   ProjectView          ProjectView[]
+  CompanyEmployee      CompanyEmployee[]
+  Company              Company[]
 }
 
 model Contractor {
@@ -93,11 +105,15 @@ model Contractor {
   cityId String?
   city   City?   @relation(fields: [cityId], references: [id], onDelete: SetNull)
 
+  // 🔹 связь с компанией
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
   categories           Category[]             @relation("ContractorCategories")
   conversations        Conversation[]
   ContractorAttachment ContractorAttachment[]
 
-  services                ContractorService[] // ← связи "исполнитель ↔ услуга"
+  services                ContractorService[]
   ContractorShowcaseImage ContractorShowcaseImage[]
   favorites               FavoriteContractor[]
   review                  Review[]
@@ -105,6 +121,69 @@ model Contractor {
   Project                 Project[]
 
   @@index([cityId])
+  @@index([companyId])
+}
+
+model CompanyEmployee {
+  id String @id @default(cuid())
+
+  companyId String
+  userId    String
+
+  position String?
+  isActive Boolean @default(true)
+
+  // 🔹 роль внутри компании
+  role CompanyRole @default(EMPLOYEE)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, userId])
+  @@index([userId])
+}
+
+model Company {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+
+  // назначение компании: логистика, услуги, товары
+  purpose CompanyPurpose
+
+  // логотип
+  logoUrl String? @map("logo_url")
+
+  images CompanyImage[]
+
+  manager   User              @relation(fields: [userId], references: [id])
+  // сотрудники
+  employees CompanyEmployee[]
+
+  // исполнители (если нужно связать Contractor с компанией)
+  contractors Contractor[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+}
+
+model CompanyImage {
+  id String @id @default(cuid())
+
+  companyId String
+  url       String // ссылка на картинку (MinIO / S3 / CDN / что угодно)
+
+  isMain    Boolean @default(false) // главное изображение
+  sortOrder Int     @default(0)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
 }
 
 model ContractorService {

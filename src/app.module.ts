@@ -23,6 +23,8 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MinioModule } from './minio/minio.module';
 import { AttachmentRouterModule } from './attachment-router/attachment-router.module';
+import { CompanyService } from './company/company.service';
+import { CompanyModule } from './company/company.module';
 
 
 
@@ -30,7 +32,7 @@ import { AttachmentRouterModule } from './attachment-router/attachment-router.mo
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
-        ThrottlerModule.forRoot([{ ttl: 60, limit: 500 }]),
+        ThrottlerModule.forRoot([{ ttl: 60, limit: 750 }]),
         PrismaModule,
         AuthModule,
         CategoriesModule,
@@ -49,6 +51,7 @@ import { AttachmentRouterModule } from './attachment-router/attachment-router.mo
         NotificationsModule,
         MinioModule,
         AttachmentRouterModule,
+        CompanyModule,
         EventEmitterModule.forRoot(),
     ],
     providers: [

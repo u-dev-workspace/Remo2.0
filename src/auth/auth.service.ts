@@ -12,7 +12,7 @@ import { Prisma } from '@prisma/client';
 
 type RegisterInput = {
     email: string; password: string;
-    role: 'CLIENT' | 'CONTRACTOR'; name: string; city: string;
+    role: 'CLIENT' | 'CONTRACTOR' | 'BUSINESS'; name: string; city: string;
 };
 
 @Injectable()

@@ -5,6 +5,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { JwtGuard } from '../common/guards/jwt.guard';
 
 import { MessagePattern, Payload } from '@nestjs/microservices';
+@ApiBearerAuth('bearerAuth')
 @Controller('api/v1/auth')
 export class AuthController {
     constructor(private auth: AuthService) {}
@@ -29,7 +30,6 @@ export class AuthController {
         return this.auth.getPublicById(userId);
     }
 
-    // ======== HTTP: текущий пользователь по access-токену ========
     @Get('me/profile')
     @UseGuards(JwtGuard)
     @ApiBearerAuth()
@@ -40,7 +40,7 @@ export class AuthController {
         return this.auth.getUserProfile(req.user.id);
     }
 
-    // ======== HTTP: рефреш токенов ========
+
     @Post('refresh')
     @ApiOperation({ summary: 'Refresh access/refresh tokens' })
     @ApiOkResponse({ description: 'New token pair and user' })
@@ -48,13 +48,12 @@ export class AuthController {
         return this.auth.refreshTokens(dto.refreshToken);
     }
 
-    // ======== МИКРОСЕРВИСЫ: проверка токена ========
     @MessagePattern({ cmd: 'auth.validate' })
     validateForMs(@Payload() data: { accessToken: string }) {
         return this.auth.validateAccessToken(data.accessToken);
     }
 
-    // ======== МИКРОСЕРВИСЫ: рефреш ========
+
     @MessagePattern({ cmd: 'auth.refresh' })
     refreshForMs(@Payload() data: { refreshToken: string }) {
         return this.auth.refreshTokens(data.refreshToken);

@@ -22,7 +22,7 @@ import { StartConversationDto } from './dto/StartConversationDto';
 import { ListConversationsQueryDto } from './dto/ListConversationsQueryDto';
 import { TimelineQueryDto } from './dto/TimelineQueryDto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
+
 import type{ FastifyRequest } from 'fastify';
 export class SendMessageWithFileDto {
     @ApiProperty({ required: false })
