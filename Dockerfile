@@ -45,6 +45,9 @@ COPY --from=build /app/.yarnrc.yml ./.yarnrc.yml
 
 # Устанавливаем зависимости по перенесённому lockfile
 # (теперь --immutable пройдет без YN0028)
+RUN corepack enable \
+ && corepack prepare yarn@4.10.3 --activate
+
 RUN yarn install --immutable --mode=skip-build
 
 # Копируем Prisma и сборку из build
