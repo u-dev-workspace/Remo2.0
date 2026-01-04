@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, RefreshTokenDto } from './dto';
+import { LoginDto, RegisterDto, RefreshTokenDto, NameDto } from './dto';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
 import { JwtGuard } from '../common/guards/jwt.guard';
 
@@ -28,6 +28,16 @@ export class AuthController {
     async me(@Req() req: any) {
         const userId: string = req.user?.sub ?? req.user?.id;
         return this.auth.getPublicById(userId);
+    }
+
+    @Patch('me')
+    @ApiOperation({ summary: "Обновить имя пользователя" })
+    @ApiBearerAuth('bearerAuth')
+    @UseGuards(JwtGuard)
+    @ApiOkResponse({ description: 'Обновить имя пользователя' })
+    async meChange(@Req() req: any, @Body() dto:NameDto) {
+        const userId: string = req.user?.sub ?? req.user?.id;
+        return this.auth.setName(userId, dto.name);
     }
 
     @Get('me/profile')

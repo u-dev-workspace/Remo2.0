@@ -86,6 +86,21 @@ export class AuthService {
         return safe;
     }
 
+    async setName(id: string, name: string) {
+        const user = await this.prisma.user.update({
+            where: { id },
+            data:{
+                name: name,
+            }
+        });
+        if (!user) throw new NotFoundException('User not found');
+
+        // выкидываем пароль
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { passwordHash, ...safe } = user as any;
+        return safe;
+    }
+
     async getUnAuthConractorRec(){
         return this.prisma.contractor.findMany({
             take: 4,
