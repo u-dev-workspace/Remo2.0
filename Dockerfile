@@ -10,6 +10,18 @@ COPY .yarn ./.yarn
 RUN yarn install --immutable --mode=skip-build
 
 # ==============================
+# === TEST: запуск юнит-тестов
+# ==============================
+FROM deps AS test
+
+COPY prisma ./prisma
+COPY tsconfig*.json nest-cli.json ./
+COPY src ./src
+
+RUN yarn prisma generate
+RUN yarn test --no-coverage --forceExit
+
+# ==============================
 # === BUILD: компиляция
 # ==============================
 FROM deps AS build

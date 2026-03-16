@@ -19,9 +19,11 @@ pipeline {
             steps {
                 script {
                     try {
-                        sh 'yarn install --immutable --mode=skip-build'
-                        sh 'yarn test --no-coverage --forceExit'
+                        sh "docker build --target test -t ${APP_NAME}-test ."
+                        sh "docker rmi ${APP_NAME}-test || true"
                     } catch (err) {
+                        sh "docker rmi ${APP_NAME}-test || true"
+
                         def text = """❌ Jenkins: тесты упали
 Job: ${env.JOB_NAME}
 Build: #${env.BUILD_NUMBER}
@@ -31,8 +33,8 @@ URL: ${env.BUILD_URL}"""
                         def safeText = text.replace('"', '\\"')
 
                         sh """
-                          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                            -d chat_id="${TELEGRAM_CHAT_ID}" \
+                          curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                            -d chat_id="\${TELEGRAM_CHAT_ID}" \
                             -d text="${safeText}"
                         """
                         error("Тесты не прошли — деплой отменён")
@@ -76,8 +78,8 @@ URL: ${env.BUILD_URL}"""
                 def safeText = text.replace('"', '\\"')
 
                 sh """
-                  curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                    -d chat_id="${TELEGRAM_CHAT_ID}" \
+                  curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                    -d chat_id="\${TELEGRAM_CHAT_ID}" \
                     -d text="${safeText}"
                 """
             }
@@ -94,8 +96,8 @@ URL: ${env.BUILD_URL}"""
                 def safeText = text.replace('"', '\\"')
 
                 sh """
-                  curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                    -d chat_id="${TELEGRAM_CHAT_ID}" \
+                  curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                    -d chat_id="\${TELEGRAM_CHAT_ID}" \
                     -d text="${safeText}"
                 """
             }
