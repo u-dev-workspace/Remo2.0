@@ -25,6 +25,7 @@ import { MinioModule } from './minio/minio.module';
 import { AttachmentRouterModule } from './attachment-router/attachment-router.module';
 import { CompanyService } from './company/company.service';
 import { CompanyModule } from './company/company.module';
+import { LoggerModule } from 'nestjs-pino';
 
 
 
@@ -53,6 +54,33 @@ import { CompanyModule } from './company/company.module';
         AttachmentRouterModule,
         CompanyModule,
         EventEmitterModule.forRoot(),
+        LoggerModule.forRoot({
+            pinoHttp: {
+                // формат в консоль (как “ERROR ... key=value ...”)
+                customLogLevel: (_req, res, err) => {
+                    if (err || res.statusCode >= 500) return 'error';
+                    if (res.statusCode >= 400) return 'warn';
+                    return 'info';
+                },
+                transport: {
+                    target: 'pino-pretty',
+                    options: {
+                        singleLine: true,
+                        colorize: false,          // как в Loki обычно лучше без цветов
+                        translateTime: 'UTC:yyyy-mm-dd"T"HH:MM:ss.l"Z"',
+                        messageKey: 'msg',
+                        errorKey: 'err',
+                        ignore: 'pid,hostname',   // можно убрать лишнее
+                    },
+                },
+
+                // полезные поля
+                customProps: (req) => ({
+                    container: process.env.HOSTNAME, // в докере HOSTNAME = id контейнера
+                    service: process.env.SERVICE_NAME || 'remo-service-api',
+                }),
+            },
+        }),
     ],
     providers: [
         // 👇 глобально подключаем ThrottlerGuard

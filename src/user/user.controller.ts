@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiProperty, ApiTags } from '@nestjs/swagger';
+import { IsString, IsUrl } from 'class-validator';
 import { JwtGuard } from '../common/guards/jwt.guard';
 import { UserService } from './user.service';
 
@@ -20,6 +21,8 @@ class UploadAvatarDto {
 
 class SetAvatarUrlDto {
   @ApiProperty({ type: 'string', description: 'Готовый публичный URL' })
+  @IsString()
+  @IsUrl()
   avatarUrl!: string;
 }
 

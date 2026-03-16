@@ -58,10 +58,10 @@ export class NotificationsController {
   })
   async myNotifications(
     @Req() req: any,
-    @Query('onlyUnread') onlyUnread?: string,
+    @Query('onlyUnread') onlyUnread?: boolean,
   ) {
     const userId = req.user?.id;
-    return this.notifications.getForUser(userId, onlyUnread === 'true');
+    return this.notifications.getForUser(userId, onlyUnread ?? false);
   }
 
   @Patch(':id/read')

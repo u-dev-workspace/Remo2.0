@@ -2,6 +2,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { UploadsService } from './uploads.service';
 import { JwtGuard } from '../common/guards/jwt.guard';
+import { PresignUploadDto } from './dto/presign-upload.dto';
 
 @Controller('api/v1/uploads')
 @UseGuards(JwtGuard) // только авторизованные
@@ -20,7 +21,7 @@ export class UploadsController {
     }
 
     @Post('presign')
-    presign(@Body() body: { projectId: string; mime: string; sizeBytes: number; ext?: string }) {
+    presign(@Body() body: PresignUploadDto) {
         return this.uploads.createPresignedPut(body.projectId, body.mime, body.sizeBytes, body.ext);
     }
 }

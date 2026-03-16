@@ -4,13 +4,15 @@ services:
       context: .
     image: remo-api:latest
     container_name: remo-api
+    networks:
+      - remo-network
     restart: no
     env_file:
       - .env
     environment:
       # API слушает 8080 внутри, наружу — 3005
-      PORT: 3005:8080
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3005}
+      PORT: 3006:8080
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3006}
       # Укажи внешний DSN или подключи отдельный сервис БД
       DATABASE_URL: ${DATABASE_URL}
       # по желанию: CORS для фронта
@@ -28,3 +30,8 @@ services:
              node dist/src/main.js"
 volumes:
   uploads_data:
+
+
+networks:
+  remo-network:
+    external: true

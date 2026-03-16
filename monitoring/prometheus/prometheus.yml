@@ -1,0 +1,25 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Сам Prometheus
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["remo-prometheus:9090"]
+
+  # Твой API (работает только если есть эндпоинт /metrics)
+  - job_name: "remo-api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["remo-api:8080"]
+
+  # Метрики хоста (если ты запускал node_exporter)
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["remo-node-exporter:9100"]
+
+  # Метрики контейнеров (если запускал cadvisor)
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["remo-cadvisor:8080"]
