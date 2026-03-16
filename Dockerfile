@@ -30,7 +30,7 @@ COPY prisma ./prisma
 COPY tsconfig*.json nest-cli.json ./
 COPY src ./src
 
-RUN yarn prisma generate && yarn build
+RUN yarn prisma generate && yarn build && test -f dist/src/main.js
 
 # ==============================
 # === RUNTIME: минимальный production-образ
