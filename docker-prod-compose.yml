@@ -11,7 +11,7 @@ services:
       - .env
     environment:
       # API слушает 8080 внутри, наружу — 3005
-      PORT: 3006:8080
+      PORT: 3005:8080
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3006}
       # Укажи внешний DSN или подключи отдельный сервис БД
       DATABASE_URL: ${DATABASE_URL}
