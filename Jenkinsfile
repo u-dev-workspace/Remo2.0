@@ -59,21 +59,25 @@ URL: ${env.BUILD_URL}"""
                                 --config .semgrep/rules/nextjs.yml \
                                 --json \
                                 --output semgrep.json \
-                                --no-error \
-                                src/
+                                src/ || true
                     '''
 
                     def highCount = sh(
-                        script: "grep -o '\"severity\": \"ERROR\"' semgrep.json | wc -l",
+                        script: "grep -oE '\"severity\"\\s*:\\s*\"ERROR\"' semgrep.json | wc -l || echo 0",
                         returnStdout: true
                     ).trim().toInteger()
 
                     def mediumCount = sh(
-                        script: "grep -o '\"severity\": \"WARNING\"' semgrep.json | wc -l",
+                        script: "grep -oE '\"severity\"\\s*:\\s*\"WARNING\"' semgrep.json | wc -l || echo 0",
                         returnStdout: true
                     ).trim().toInteger()
 
-                    echo "SAST результат: HIGH=${highCount}, MEDIUM=${mediumCount}"
+                    def totalCount = sh(
+                        script: "grep -oE '\"severity\"\\s*:\\s*\"(ERROR|WARNING|INFO)\"' semgrep.json | wc -l || echo 0",
+                        returnStdout: true
+                    ).trim().toInteger()
+
+                    echo "SAST результат: HIGH(ERROR)=${highCount}, MEDIUM(WARNING)=${mediumCount}, TOTAL=${totalCount}"
 
                     if (highCount >= 1) {
                         def text = """🔴 SAST: найдено ${highCount} HIGH уязвимостей — деплой заблокирован
