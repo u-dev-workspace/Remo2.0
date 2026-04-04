@@ -52,7 +52,6 @@ URL: ${env.BUILD_URL}"""
                             -w /src \
                             semgrep/semgrep:latest \
                             semgrep scan \
-                                --config auto \
                                 --config p/typescript \
                                 --config p/nodejs \
                                 --config p/owasp-top-ten \
@@ -61,7 +60,6 @@ URL: ${env.BUILD_URL}"""
                                 --json \
                                 --output semgrep.json \
                                 --no-error \
-                                --quiet \
                                 src/
                     '''
 
