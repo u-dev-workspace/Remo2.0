@@ -45,60 +45,68 @@ URL: ${env.BUILD_URL}"""
 
         stage('SAST Semgrep') {
             steps {
-                sh '''
-                    docker run --rm \
-                        -v "$(pwd):/src" \
-                        -w /src \
-                        semgrep/semgrep:latest \
-                        semgrep scan \
-                            --config auto \
-                            --config p/typescript \
-                            --config p/nodejs \
-                            --config p/owasp-top-ten \
-                            --config .semgrep/rules/nestjs.yml \
-                            --config .semgrep/rules/nextjs.yml \
-                            --sarif --output semgrep.sarif \
-                            --json --output semgrep.json \
-                            --no-error \
-                            --quiet \
-                            src/
-                '''
+                script {
+                    sh '''
+                        docker run --rm \
+                            -v "$(pwd):/src" \
+                            -w /src \
+                            semgrep/semgrep:latest \
+                            semgrep scan \
+                                --config auto \
+                                --config p/typescript \
+                                --config p/nodejs \
+                                --config p/owasp-top-ten \
+                                --config .semgrep/rules/nestjs.yml \
+                                --config .semgrep/rules/nextjs.yml \
+                                --json \
+                                --output semgrep.json \
+                                --no-error \
+                                --quiet \
+                                src/
+                    '''
+
+                    def highCount = sh(
+                        script: "grep -o '\"severity\": \"ERROR\"' semgrep.json | wc -l",
+                        returnStdout: true
+                    ).trim().toInteger()
+
+                    def mediumCount = sh(
+                        script: "grep -o '\"severity\": \"WARNING\"' semgrep.json | wc -l",
+                        returnStdout: true
+                    ).trim().toInteger()
+
+                    echo "SAST результат: HIGH=${highCount}, MEDIUM=${mediumCount}"
+
+                    if (highCount >= 1) {
+                        def text = """🔴 SAST: найдено ${highCount} HIGH уязвимостей — деплой заблокирован
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+URL: ${env.BUILD_URL}"""
+                        def safeText = text.replace('"', '\\"')
+                        sh """
+                          curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                            -d chat_id="\${TELEGRAM_CHAT_ID}" \
+                            -d text="${safeText}"
+                        """
+                        error("SAST: найдено ${highCount} HIGH уязвимостей — деплой заблокирован")
+                    } else if (mediumCount >= 5) {
+                        def text = """🟡 SAST: найдено ${mediumCount} MEDIUM уязвимостей — требуют внимания
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+URL: ${env.BUILD_URL}"""
+                        def safeText = text.replace('"', '\\"')
+                        sh """
+                          curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                            -d chat_id="\${TELEGRAM_CHAT_ID}" \
+                            -d text="${safeText}"
+                        """
+                        unstable("SAST: найдено ${mediumCount} MEDIUM уязвимостей")
+                    }
+                }
             }
             post {
                 always {
-                    recordIssues(
-                        tools: [sarif(pattern: 'semgrep.sarif', id: 'semgrep', name: 'Semgrep SAST')],
-                        qualityGates: [
-                            [threshold: 1, type: 'TOTAL_HIGH',   unstable: false],
-                            [threshold: 5, type: 'TOTAL_NORMAL', unstable: true]
-                        ]
-                    )
-                    archiveArtifacts artifacts: 'semgrep.sarif,semgrep.json', allowEmptyArchive: true
-                    script {
-                        if (currentBuild.result == 'FAILURE') {
-                            def text = """🔴 SAST: найдены HIGH уязвимости — деплой заблокирован
-Job: ${env.JOB_NAME}
-Build: #${env.BUILD_NUMBER}
-URL: ${env.BUILD_URL}"""
-                            def safeText = text.replace('"', '\\"')
-                            sh """
-                              curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                                -d chat_id="\${TELEGRAM_CHAT_ID}" \
-                                -d text="${safeText}"
-                            """
-                        } else if (currentBuild.result == 'UNSTABLE') {
-                            def text = """🟡 SAST: найдены MEDIUM уязвимости (5+) — требуют внимания
-Job: ${env.JOB_NAME}
-Build: #${env.BUILD_NUMBER}
-URL: ${env.BUILD_URL}"""
-                            def safeText = text.replace('"', '\\"')
-                            sh """
-                              curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                                -d chat_id="\${TELEGRAM_CHAT_ID}" \
-                                -d text="${safeText}"
-                            """
-                        }
-                    }
+                    archiveArtifacts artifacts: 'semgrep.json', allowEmptyArchive: true
                 }
             }
         }
