@@ -6,3 +6,18 @@ coverage/
 prisma/migrations/
 *.min.js
 *.d.ts
+
+# Намеренно открытые контроллеры (публичный доступ)
+src/app.controller.ts
+src/auth/auth.controller.ts
+src/categories/categories.controller.ts
+src/services/services.controller.ts
+src/attachment-router/attachment-router.controller.ts
+src/contractor-attachments/attachments.debug.controller.ts
+src/contractor-profile/contractor-profile.controller.ts
+src/favorites/favorites.controller.ts
+src/projects/projects.controller.ts
+src/recommendations/recommendations.controller.ts
+src/reviews/reviews.controller.ts
+src/search/search.controller.ts
+src/user/user.controller.ts

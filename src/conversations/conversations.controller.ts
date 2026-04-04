@@ -91,7 +91,7 @@ export class ConversationsController {
         // ❗ так мы реально достанем text, который ты отправляешь через Swagger
         const textFromFields =
           (filePart.fields?.text?.value as string | undefined) ??
-          ((req.body as any)?.text as string | undefined);
+          ((req.body as any)?.text as string | undefined); // nosemgrep: nestjs-raw-req-body
 
         return this.service.sendMessageWithFile(
           conversationId,

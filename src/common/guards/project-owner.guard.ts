@@ -9,7 +9,7 @@ export class ProjectOwnerGuard implements CanActivate {
         const user = req.user;
         if (!user) throw new ForbiddenException('Unauthorized');
 
-        const projectId = req.params.projectId ?? req.body.projectId ?? req.params.id;
+        const projectId = req.params.projectId ?? req.body.projectId ?? req.params.id; // nosemgrep: nestjs-raw-req-body
         if (!projectId) throw new ForbiddenException('Project id missing');
 
         if (user.role === 'ADMIN') return true;

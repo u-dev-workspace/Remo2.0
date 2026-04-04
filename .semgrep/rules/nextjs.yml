@@ -4,11 +4,11 @@ rules:
   - id: nextjs-dangerous-inner-html-variable
     patterns:
       - pattern: |
-          dangerouslySetInnerHTML={{ __html: $VAR }}
+          <$EL dangerouslySetInnerHTML={$EXPR} />
       - pattern-not: |
-          dangerouslySetInnerHTML={{ __html: "..." }}
+          <$EL dangerouslySetInnerHTML={{__html: "..."}} />
     message: >
-      dangerouslySetInnerHTML использует переменную $VAR — это потенциальный
+      dangerouslySetInnerHTML использует переменную — это потенциальный
       XSS. Убедитесь, что значение санитизировано (например, через DOMPurify).
     languages: [typescript, javascript]
     severity: ERROR
