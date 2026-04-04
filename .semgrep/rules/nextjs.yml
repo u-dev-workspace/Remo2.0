@@ -1,0 +1,73 @@
+rules:
+
+  # 1. dangerouslySetInnerHTML с переменной (не строковым литералом)
+  - id: nextjs-dangerous-inner-html-variable
+    patterns:
+      - pattern: |
+          dangerouslySetInnerHTML={{ __html: $VAR }}
+      - pattern-not: |
+          dangerouslySetInnerHTML={{ __html: "..." }}
+    message: >
+      dangerouslySetInnerHTML использует переменную $VAR — это потенциальный
+      XSS. Убедитесь, что значение санитизировано (например, через DOMPurify).
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-79
+
+  # 2. eval() с переменной
+  - id: nextjs-eval-variable
+    patterns:
+      - pattern: eval($VAR)
+      - pattern-not: eval("...")
+    message: >
+      eval() с переменной $VAR — критический риск выполнения произвольного кода.
+      Замените на безопасную альтернативу.
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-95
+
+  # 3. document.write
+  - id: nextjs-document-write
+    pattern: document.write(...)
+    message: >
+      document.write() опасен и может использоваться для XSS-атак.
+      Используйте DOM API (innerHTML с санитизацией или createElement).
+    languages: [typescript, javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-79
+
+  # 4. window.location из user input
+  - id: nextjs-open-redirect
+    patterns:
+      - pattern: window.location.href = $VAR
+      - pattern-not: window.location.href = "..."
+    message: >
+      window.location.href устанавливается из переменной $VAR — возможен
+      open redirect. Валидируйте URL перед редиректом.
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-601
+
+  # 5. localStorage с чувствительными ключами
+  - id: nextjs-localstorage-sensitive
+    patterns:
+      - pattern: localStorage.setItem($KEY, ...)
+      - metavariable-regex:
+          metavariable: $KEY
+          regex: ".*(token|password|secret|key|credential).*"
+    message: >
+      localStorage.setItem сохраняет потенциально чувствительные данные ($KEY).
+      Рассмотрите httpOnly cookie вместо localStorage для токенов.
+    languages: [typescript, javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-312

@@ -1,0 +1,19 @@
+pre-commit:
+  parallel: false
+  commands:
+    semgrep:
+      run: >
+        docker run --rm
+        -v "$(pwd):/src"
+        semgrep/semgrep:latest
+        semgrep scan
+        --config .semgrep/rules/nestjs.yml
+        --config .semgrep/rules/nextjs.yml
+        --error
+        --quiet
+        {staged_files}
+      glob: "*.{ts,tsx,js,jsx}"
+      fail_text: |
+        ❌ Semgrep нашёл проблемы безопасности.
+        Исправь их перед коммитом или запусти:
+          docker run --rm -v "$(pwd):/src" semgrep/semgrep:latest semgrep scan --config .semgrep/rules/ src/

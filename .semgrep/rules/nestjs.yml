@@ -1,0 +1,79 @@
+rules:
+
+  # 1. Контроллер без @UseGuards
+  - id: nestjs-controller-missing-guard
+    patterns:
+      - pattern: |
+          @Controller(...)
+          class $CLASS { ... }
+      - pattern-not: |
+          @UseGuards(...)
+          @Controller(...)
+          class $CLASS { ... }
+      - pattern-not: |
+          @Controller(...)
+          @UseGuards(...)
+          class $CLASS { ... }
+    message: >
+      Контроллер $CLASS не защищён @UseGuards. Добавь @UseGuards(JwtGuard) или
+      явно пометь публичные методы декоратором @Public().
+    languages: [typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-306
+
+  # 2. @Public() на методе без явного комментария/обоснования
+  - id: nestjs-unsafe-public-decorator
+    pattern: |
+      @Public()
+      $METHOD(...) { ... }
+    message: >
+      Метод $METHOD помечен @Public() — убедитесь, что это намеренно и
+      эндпоинт не раскрывает чувствительные данные без авторизации.
+    languages: [typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-284
+
+  # 3. Сервис напрямую принимает any без DTO
+  - id: nestjs-body-typed-as-any
+    pattern: |
+      @Body() $PARAM: any
+    message: >
+      Параметр $PARAM имеет тип any — используйте DTO с валидаторами
+      class-validator вместо any.
+    languages: [typescript]
+    severity: WARNING
+    metadata:
+      category: correctness
+
+  # 4. Прямое использование req.body без ValidationPipe
+  - id: nestjs-raw-req-body
+    pattern: |
+      $REQ.body
+    message: >
+      Используется $REQ.body напрямую. Используйте @Body() с DTO и
+      ValidationPipe, чтобы данные были валидированы.
+    languages: [typescript]
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: CWE-20
+
+  # 5. console.log с потенциально чувствительными данными
+  - id: nestjs-console-log-sensitive
+    patterns:
+      - pattern: console.log(..., $DATA, ...)
+      - metavariable-regex:
+          metavariable: $DATA
+          regex: ".*(password|token|secret|key|hash|credential).*"
+    message: >
+      console.log может выводить чувствительные данные ($DATA).
+      Используйте логгер с маскировкой или удалите вывод.
+    languages: [typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: CWE-532
