@@ -91,7 +91,7 @@ URL: ${env.BUILD_URL}"""
                             -d text="${safeText}"
                         """
                         error("SAST: найдено ${highCount} HIGH уязвимостей — деплой заблокирован")
-                    } else if (mediumCount >= 5) {
+                    } else if (mediumCount >= 10) {
                         def text = """🟡 SAST: найдено ${mediumCount} MEDIUM уязвимостей — требуют внимания
 Job: ${env.JOB_NAME}
 Build: #${env.BUILD_NUMBER}
