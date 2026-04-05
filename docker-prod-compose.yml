@@ -6,7 +6,7 @@ services:
     container_name: remo-api
     networks:
       - remo-network
-    restart: no
+    restart: unless-stopped
     env_file:
       - .env
     environment:
