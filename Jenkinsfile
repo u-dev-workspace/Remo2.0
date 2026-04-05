@@ -2,6 +2,7 @@ pipeline {
     agent any
 
     environment {
+        DEPLOY_METHOD = 'Docker'
         COMPOSE_FILE = 'docker-prod-compose.yml'
         APP_NAME = 'remo-api'
         TELEGRAM_BOT_TOKEN = credentials('telegram-bot-token')
