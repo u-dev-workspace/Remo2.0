@@ -3,6 +3,10 @@
 /node_modules
 /build
 
+# Yarn
+.yarn/install-state.gz
+.yarn/cache
+
 # Logs
 logs
 *.log
