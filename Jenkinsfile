@@ -134,6 +134,52 @@ URL: ${env.BUILD_URL}"""
                 }
             }
         }
+
+        stage('DAST ZAP') {
+            steps {
+                script {
+                    sh 'mkdir -p zap-reports'
+                    sh '''
+                        docker run --rm \
+                            -v "$(pwd)/zap-reports:/zap/wrk" \
+                            ghcr.io/zaproxy/zaproxy:stable \
+                            zap-api-scan.py \
+                                -t https://remo-api.centi.space/docs/json \
+                                -f openapi \
+                                -r zap-report.html \
+                                -J zap-report.json \
+                                -I \
+                                -l WARN || true
+                    '''
+
+                    def highCount = sh(
+                        script: "grep -oE '\"riskdesc\"\\s*:\\s*\"High' zap-reports/zap-report.json | wc -l || echo 0",
+                        returnStdout: true
+                    ).trim().toInteger()
+
+                    echo "DAST ZAP результат: HIGH=${highCount}"
+
+                    if (highCount >= 1) {
+                        def text = """🔴 DAST: найдено ${highCount} HIGH уязвимостей
+Job: ${env.JOB_NAME}
+Build: #${env.BUILD_NUMBER}
+URL: ${env.BUILD_URL}"""
+                        def safeText = text.replace('"', '\\"')
+                        sh """
+                          curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                            -d chat_id="\${TELEGRAM_CHAT_ID}" \
+                            -d text="${safeText}"
+                        """
+                        error("DAST: найдено ${highCount} HIGH уязвимостей")
+                    }
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'zap-reports/zap-report.html,zap-reports/zap-report.json', allowEmptyArchive: true
+                }
+            }
+        }
     }
 
     post {
