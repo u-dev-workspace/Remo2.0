@@ -5,7 +5,9 @@
       "Bash(yarn npm:*)",
       "Bash(ls \"E:\\\\Centy_Workspace\\\\Remo2.0\\\\.git\\\\hooks\"\" 2>/dev/null || echo \"не найдено \")",
       "Bash(yarn add:*)",
-      "Bash(npx lefthook:*)"
+      "Bash(npx lefthook:*)",
+      "Bash(yarn why:*)",
+      "Bash(yarn up:*)"
     ]
   }
 }
