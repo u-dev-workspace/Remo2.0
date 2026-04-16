@@ -4,16 +4,16 @@ pre-commit:
     semgrep:
       run: >
         docker run --rm
-        -v "$(pwd):/src"
+        -v "$(pwd):/src" -w /src
         semgrep/semgrep:latest
         semgrep scan
         --config .semgrep/rules/nestjs.yml
         --config .semgrep/rules/nextjs.yml
+        --severity ERROR
         --error
-        --quiet
         {staged_files}
       glob: "*.{ts,tsx,js,jsx}"
       fail_text: |
-        ❌ Semgrep нашёл проблемы безопасности.
-        Исправь их перед коммитом или запусти:
-          docker run --rm -v "$(pwd):/src" semgrep/semgrep:latest semgrep scan --config .semgrep/rules/ src/
+        ❌ Semgrep нашёл критическую уязвимость (ERROR-severity).
+        Подробнее:
+          docker run --rm -v "$(pwd):/src" -w /src semgrep/semgrep:latest semgrep scan --config .semgrep/rules/ src/

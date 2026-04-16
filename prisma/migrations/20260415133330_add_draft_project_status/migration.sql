@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE `Project` MODIFY `status` ENUM('DRAFT', 'OPEN', 'IN_TALK', 'CLOSED', 'ARCHIVED') NOT NULL DEFAULT 'OPEN';
+
+-- AlterTable
+ALTER TABLE `ProjectStatusHistory` MODIFY `from` ENUM('DRAFT', 'OPEN', 'IN_TALK', 'CLOSED', 'ARCHIVED') NULL,
+    MODIFY `to` ENUM('DRAFT', 'OPEN', 'IN_TALK', 'CLOSED', 'ARCHIVED') NOT NULL;

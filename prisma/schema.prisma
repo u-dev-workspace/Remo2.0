@@ -16,6 +16,7 @@ enum UserRole {
 }
 
 enum ProjectStatus {
+  DRAFT
   OPEN
   IN_TALK
   CLOSED

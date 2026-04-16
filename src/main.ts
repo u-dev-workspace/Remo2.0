@@ -53,6 +53,15 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
+  // Health check — используется Swarm/load balancer для проверки готовности реплики
+  fastify.get('/health', async (_req, reply) => {
+    return reply.send({
+      status: 'ok',
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Remo API')
     .setDescription('API для платформы подбора подрядчиков (ремонт/стройка)')
