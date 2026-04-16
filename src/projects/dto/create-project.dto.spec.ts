@@ -9,19 +9,18 @@ async function validateDto(plain: object) {
 const validBase = {
   title: 'Ремонт кухни',
   description: 'Полный ремонт кухни 15 кв.м',
-  clientId: 'user-abc-123',
 };
 
 describe('CreateProjectDto', () => {
-  describe('обязательные поля', () => {
+  describe('минимальный контракт', () => {
     it('принимает минимально корректные данные', async () => {
       const errors = await validateDto(validBase);
       expect(errors).toHaveLength(0);
     });
 
-    it('отклоняет пустой title', async () => {
+    it('принимает пустой title (→ DRAFT)', async () => {
       const errors = await validateDto({ ...validBase, title: '' });
-      expect(errors.some(e => e.property === 'title')).toBe(true);
+      expect(errors.some(e => e.property === 'title')).toBe(false);
     });
 
     it('отклоняет title не строкой', async () => {
@@ -29,26 +28,20 @@ describe('CreateProjectDto', () => {
       expect(errors.some(e => e.property === 'title')).toBe(true);
     });
 
-    it('отклоняет отсутствующий title', async () => {
+    it('принимает отсутствующий title (→ DRAFT)', async () => {
       const { title, ...rest } = validBase;
       const errors = await validateDto(rest);
-      expect(errors.some(e => e.property === 'title')).toBe(true);
+      expect(errors.some(e => e.property === 'title')).toBe(false);
     });
 
-    it('отклоняет пустой description', async () => {
+    it('принимает пустой description', async () => {
       const errors = await validateDto({ ...validBase, description: '' });
-      expect(errors.some(e => e.property === 'description')).toBe(true);
+      expect(errors.some(e => e.property === 'description')).toBe(false);
     });
 
-    it('отклоняет отсутствующий clientId', async () => {
-      const { clientId, ...rest } = validBase;
-      const errors = await validateDto(rest);
-      expect(errors.some(e => e.property === 'clientId')).toBe(true);
-    });
-
-    it('отклоняет пустой clientId', async () => {
-      const errors = await validateDto({ ...validBase, clientId: '' });
-      expect(errors.some(e => e.property === 'clientId')).toBe(true);
+    it('принимает полностью пустой объект (→ DRAFT)', async () => {
+      const errors = await validateDto({});
+      expect(errors).toHaveLength(0);
     });
   });
 
@@ -134,6 +127,28 @@ describe('CreateProjectDto', () => {
         services: [{ categoryIds: ['cat-1'] }],
       });
       expect(errors.some(e => e.property === 'services')).toBe(true);
+    });
+  });
+
+  describe('status', () => {
+    it('принимает корректное значение enum (DRAFT)', async () => {
+      const errors = await validateDto({ ...validBase, status: 'DRAFT' });
+      expect(errors).toHaveLength(0);
+    });
+
+    it('принимает корректное значение enum (OPEN)', async () => {
+      const errors = await validateDto({ ...validBase, status: 'OPEN' });
+      expect(errors).toHaveLength(0);
+    });
+
+    it('отклоняет значение вне enum', async () => {
+      const errors = await validateDto({ ...validBase, status: 'INVALID' });
+      expect(errors.some(e => e.property === 'status')).toBe(true);
+    });
+
+    it('принимает отсутствие status (опциональное поле)', async () => {
+      const errors = await validateDto({ ...validBase });
+      expect(errors.some(e => e.property === 'status')).toBe(false);
     });
   });
 });

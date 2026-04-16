@@ -146,6 +146,7 @@ export class SearchService {
         client: { select: { id: true, name: true } },
         categories: { select: { id: true, name: true } },
         services: { select: {service: true} },
+        status: true,
       },
     });
 

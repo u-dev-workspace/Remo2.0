@@ -4,6 +4,7 @@ import {
   IsEnum, IsNumber, IsInt, Min, ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { ProjectStatus } from '@prisma/client';
 import { ProjectServiceInput } from './project-service-input.dto';
 
 // Если в Prisma у тебя есть enum PremisesType — оставь этот enum в DTO.
@@ -18,27 +19,22 @@ export enum PremisesType {
 }
 
 export class CreateProjectDto {
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'Название проекта. Если не указано — проект сохраняется как черновик (DRAFT)',
+  })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  title?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Описание проекта' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  description: string;
+  description?: string;
 
-  // ↓ БОЛЬШЕ НЕ СТРОКА city — используем справочник городов
   @ApiPropertyOptional({ description: 'ID города (City.id)' })
   @IsOptional()
   @IsString()
   cityId?: string;
-
-  // временно, если ты всё ещё принимаешь clientId из запроса (без auth)
-  @ApiProperty({ description: 'ID пользователя-владельца проекта' })
-  @IsString()
-  @IsNotEmpty()
-  clientId: string;
 
   @ApiPropertyOptional({ type: [String], description: 'Список ID категорий' })
   @IsOptional()
@@ -68,6 +64,14 @@ export class CreateProjectDto {
   @IsInt()
   @Min(0)
   budgetEstimated?: number;
+
+  @ApiPropertyOptional({
+    enum: ProjectStatus,
+    description: 'Статус проекта при создании. Если не указан — DRAFT когда нет title, OPEN когда title есть',
+  })
+  @IsOptional()
+  @IsEnum(ProjectStatus)
+  status?: ProjectStatus;
 
   @ApiPropertyOptional({
     description: 'Набор услуг для проекта c (опционально) выбранными категориями внутри каждой услуги',

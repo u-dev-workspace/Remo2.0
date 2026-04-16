@@ -59,85 +59,6 @@ export class ProjectsService {
     }
   }
 
-  // async create(userId: string, dto: CreateProjectDto) {
-  //   // 1) clientId — лучше брать из JWT, а не из dto
-  //   const clientId = userId ?? dto.clientId;
-  //   if (!clientId) throw new BadRequestException('clientId is required');
-  //
-  //   // 2) Проверим cityId (если пришёл)
-  //   if (dto.cityId) {
-  //     const city = await this.prisma.city.findUnique({
-  //       where: { id: dto.cityId },
-  //     });
-  //     if (!city) throw new BadRequestException('cityId is invalid');
-  //   }
-  //
-  //   // 3) Проверим категории (если пришли)
-  //   if (dto.categoryIds?.length) {
-  //     const categories = await this.prisma.category.findMany({
-  //       where: { id: { in: dto.categoryIds } },
-  //       select: { id: true },
-  //     });
-  //     if (categories.length !== dto.categoryIds.length) {
-  //       const existing = new Set(categories.map((c) => c.id));
-  //       const missing = dto.categoryIds.filter((id) => !existing.has(id));
-  //       throw new BadRequestException(
-  //         `Unknown categoryIds: ${missing.join(', ')}`,
-  //       );
-  //     }
-  //   }
-  //
-  //   try {
-  //     const project = await this.prisma.project.create({
-  //       data: {
-  //         clientId,
-  //         title: dto.title,
-  //         description: dto.description,
-  //         cityId: dto.cityId ?? null,
-  //
-  //         propertyType: dto.propertyType ?? null,
-  //         area: dto.area ?? null,
-  //         budgetEstimated: dto.budgetEstimated ?? null,
-  //
-  //         ...(dto.categoryIds?.length
-  //           ? { categories: { connect: dto.categoryIds.map((id) => ({ id })) } }
-  //           : {}),
-  //       },
-  //       include: {
-  //         coverAttachment: true,
-  //         categories: true,
-  //         city: {
-  //           select: {
-  //             id: true,
-  //             slug: true,
-  //             nameRu: true,
-  //             nameKk: true,
-  //             nameEn: true,
-  //           },
-  //         },
-  //         client: {
-  //           select: { id: true, name: true, avatarUrl: true, cityId: true },
-  //         },
-  //       },
-  //     });
-  //
-  //     return project;
-  //   } catch (e: any) {
-  //     // Нормализуем типичные Prisma-ошибки во что-то понятное фронту
-  //     if (e instanceof Prisma.PrismaClientKnownRequestError) {
-  //       if (e.code === 'P2003') {
-  //         // FK constraint failed
-  //         throw new BadRequestException(
-  //           'Invalid foreign key: check cityId / categoryIds / clientId',
-  //         );
-  //       }
-  //       if (e.code === 'P2002') {
-  //         throw new BadRequestException('Unique constraint violation');
-  //       }
-  //     }
-  //     throw e;
-  //   }
-  // }
 
   async findOne(id: string) {
     const project = await this.prisma.project.findUnique({
@@ -172,132 +93,6 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
     return project;
   }
-
-  // async update(
-  //   id: string,
-  //   dto: UpdateProjectDto,
-  //   currentUserId?: string | null,
-  // ) {
-  //   // 0) проект существует + проверка владельца (если передаёшь currentUserId)
-  //   const existing = await this.prisma.project.findUnique({
-  //     where: { id },
-  //     select: { id: true, clientId: true },
-  //   });
-  //   if (!existing) throw new NotFoundException('Project not found');
-  //   if (currentUserId && existing.clientId !== currentUserId) {
-  //     throw new ForbiddenException('You are not the owner of this project');
-  //   }
-  //
-  //   // 1) Валидация FK: cityId (если прислали)
-  //   if (dto.cityId !== undefined && dto.cityId !== null) {
-  //     const city = await this.prisma.city.findUnique({
-  //       where: { id: dto.cityId },
-  //     });
-  //     if (!city) throw new BadRequestException('cityId is invalid');
-  //   }
-  //
-  //   // 2) Валидация категорий (если прислали)
-  //   if (dto.categoryIds !== undefined) {
-  //     if (!Array.isArray(dto.categoryIds)) {
-  //       throw new BadRequestException(
-  //         'categoryIds must be an array of strings',
-  //       );
-  //     }
-  //     if (dto.categoryIds.length) {
-  //       const ok = await this.prisma.category.findMany({
-  //         where: { id: { in: dto.categoryIds } },
-  //         select: { id: true },
-  //       });
-  //       if (ok.length !== dto.categoryIds.length) {
-  //         const set = new Set(ok.map((c) => c.id));
-  //         const missing = dto.categoryIds.filter((x) => !set.has(x));
-  //         throw new BadRequestException(
-  //           `Unknown categoryIds: ${missing.join(', ')}`,
-  //         );
-  //       }
-  //     }
-  //   }
-  //
-  //   // 3) Валидация обложки (если прислали coverAttachmentId)
-  //   if (dto.coverAttachmentId !== undefined && dto.coverAttachmentId !== null) {
-  //     const att = await this.prisma.attachment.findUnique({
-  //       where: { id: dto.coverAttachmentId },
-  //       select: { id: true, projectId: true },
-  //     });
-  //     if (!att || att.projectId !== id) {
-  //       throw new BadRequestException(
-  //         'coverAttachmentId must belong to this project',
-  //       );
-  //     }
-  //   }
-  //
-  //   // 4) Собираем data только из присланных полей
-  //   const data: Prisma.ProjectUpdateInput = {
-  //     ...(dto.title !== undefined ? { title: dto.title } : {}),
-  //     ...(dto.description !== undefined
-  //       ? { description: dto.description }
-  //       : {}),
-  //
-  //     // справочник города
-  //     ...(dto.cityId !== undefined ? { cityId: dto.cityId } : {}),
-  //
-  //     // новые поля
-  //     ...(dto.propertyType !== undefined
-  //       ? { propertyType: dto.propertyType as any }
-  //       : {}),
-  //     ...(dto.area !== undefined ? { area: dto.area } : {}),
-  //     ...(dto.budgetEstimated !== undefined
-  //       ? { budgetEstimated: dto.budgetEstimated }
-  //       : {}),
-  //
-  //     // обложка
-  //     ...(dto.coverAttachmentId !== undefined
-  //       ? { coverAttachmentId: dto.coverAttachmentId }
-  //       : {}),
-  //   };
-  //
-  //   // категории: set заменяет полностью. Если прислали пустой массив — очистим все категории
-  //   if (dto.categoryIds !== undefined) {
-  //     data.categories = { set: dto.categoryIds.map((id) => ({ id })) };
-  //   }
-  //
-  //   try {
-  //     const project = await this.prisma.project.update({
-  //       where: { id },
-  //       data,
-  //       include: {
-  //         coverAttachment: true,
-  //         categories: { select: { id: true, name: true } },
-  //         city: {
-  //           select: {
-  //             id: true,
-  //             slug: true,
-  //             nameRu: true,
-  //             nameKk: true,
-  //             nameEn: true,
-  //           },
-  //         },
-  //         client: {
-  //           select: { id: true, name: true, avatarUrl: true, cityId: true },
-  //         },
-  //       },
-  //     });
-  //     return project;
-  //   } catch (e: any) {
-  //     if (e instanceof Prisma.PrismaClientKnownRequestError) {
-  //       if (e.code === 'P2003') {
-  //         throw new BadRequestException(
-  //           'Invalid foreign key: cityId / categoryIds / coverAttachmentId',
-  //         );
-  //       }
-  //       if (e.code === 'P2002') {
-  //         throw new BadRequestException('Unique constraint violation');
-  //       }
-  //     }
-  //     throw e;
-  //   }
-  // }
-  //
   async remove(id: string) {
     // каскад удалит вложения, если в схеме onDelete: Cascade
     await this.ensureProject(id);
@@ -376,6 +171,7 @@ export class ProjectsService {
 
   private isTransitionAllowed(from: ProjectStatus, to: ProjectStatus): boolean {
     const allowed: Record<ProjectStatus, ProjectStatus[]> = {
+      [ProjectStatus.DRAFT]:    [ProjectStatus.OPEN, ProjectStatus.ARCHIVED],
       [ProjectStatus.OPEN]:     [ProjectStatus.IN_TALK, ProjectStatus.CLOSED, ProjectStatus.ARCHIVED],
       [ProjectStatus.IN_TALK]:  [ProjectStatus.CLOSED, ProjectStatus.ARCHIVED],
       [ProjectStatus.CLOSED]:   [ProjectStatus.ARCHIVED],
@@ -486,11 +282,6 @@ export class ProjectsService {
     return exists;
   }
 
-  // private async ensureProject(id: string) {
-  //   const exists = await this.prisma.project.findUnique({ where: { id } });
-  //   if (!exists) throw new NotFoundException('Project not found');
-  //   return exists;
-  // }
 
   async listProjects(
     params: ProjectsListQueryDto & { userId?: string | null },
@@ -509,7 +300,12 @@ export class ProjectsService {
       where.clientId = params.userId;
     }
 
-    if (params.status) where.status = params.status as any;
+    if (params.status) {
+      where.status = params.status as any;
+    } else if (!mine) {
+      // В публичном листинге черновики не показываем — только владелец видит свои DRAFT
+      where.status = { not: ProjectStatus.DRAFT };
+    }
 
     // новый справочник городов
     if ((params as any).cityId) where.cityId = (params as any).cityId;
@@ -523,9 +319,7 @@ export class ProjectsService {
     }
 
     const query: any = {
-      where:{
-        clientId: params.userId
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       take,
       select: {
@@ -649,12 +443,17 @@ export class ProjectsService {
     );
 
     // 3) транзакция: создаём проект, проставляем categories, создаём ProjectService + выбранные категории
+    // Если статус явно передан — берём его; иначе: нет title → DRAFT, есть title → OPEN
+    const resolvedStatus: ProjectStatus =
+      dto.status ?? (!dto.title ? ProjectStatus.DRAFT : ProjectStatus.OPEN);
+
     return await this.prisma.$transaction(async (tx) => {
       const project = await tx.project.create({
         data: {
           clientId: userId,
-          title: dto.title,
-          description: dto.description,
+          status: resolvedStatus,
+          title: dto.title ?? 'Черновик',
+          description: dto.description ?? '',
           cityId: dto.cityId ?? null,
           propertyType: dto.propertyType ?? null,
           area: dto.area ?? null,
