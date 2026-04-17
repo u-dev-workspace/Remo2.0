@@ -22,7 +22,7 @@ services:
         mode: ingress
     networks:
       - monitoring
-      - remo-network    # доступ к app-репликам для scrape
+      - remo-swarm    # доступ к app-репликам для scrape
     deploy:
       replicas: 1
       placement:
@@ -152,5 +152,5 @@ networks:
   monitoring:
     driver: overlay
     attachable: true
-  remo-network:
+  remo-swarm:
     external: true          # создана swarm-init.sh, shared с app-стеком
