@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-NETWORK_NAME="remo-network"
+NETWORK_NAME="remo-swarm"
 MANAGER_IP="${SWARM_ADVERTISE_ADDR:-$(hostname -I | awk '{print $1}')}"
 
 echo ""
