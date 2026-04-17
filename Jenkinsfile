@@ -147,7 +147,7 @@ URL: ${env.BUILD_URL}"""
                     sh """
                         docker run --rm \
                             --env-file .env \
-                            --network remo-overlay \
+                            --network remo-network \
                             ${env.IMAGE_TAG} \
                             node_modules/.bin/prisma migrate deploy
                     """
