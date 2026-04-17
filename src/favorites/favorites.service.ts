@@ -236,6 +236,7 @@ export class FavoritesService {
           select: {
             id: true,
             title: true,
+            description: true,
             status: true,
             coverAttachment: true,
             attachments: {take: 3} ,
