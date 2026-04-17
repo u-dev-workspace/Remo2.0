@@ -84,8 +84,9 @@ async function bootstrap() {
   });
   await app.startAllMicroservices();
 
-  const port = process.env.PORT || 8080;
-  await app.listen(+port, '0.0.0.0');
+
+  const port = Number(process.env.PORT) || 8080;
+  await app.listen(port, '0.0.0.0');
   console.log(`🚀 HTTP listening on http://127.0.0.1:${port}`);
 }
 
