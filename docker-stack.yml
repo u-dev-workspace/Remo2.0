@@ -1,0 +1,79 @@
+# Docker Swarm Stack — remo-api
+# Деплой: IMAGE_TAG=ghcr.io/ORG/remo-api:BUILD docker stack deploy -c docker-stack.yml remo
+#
+# Перед первым деплоем запустить: bash scripts/swarm-init.sh
+# ──────────────────────────────────────────────────────────────
+
+services:
+  app:
+    image: ${IMAGE_TAG:-ghcr.io/u-dev-workspace/remo-api:latest}
+
+    # Запускаем только само приложение.
+    # Миграции прогоняются один раз в Jenkins перед stack deploy.
+    command: ["node", "dist/src/main.js"]
+
+    # env_file резолвится на manager-ноде во время деплоя и рассылается
+    # всем репликам через Swarm service spec — файл нужен только на менеджере.
+    env_file: .env
+
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+
+    ports:
+      # mode: ingress — Swarm routing mesh: любой узел кластера принимает
+      # трафик на 3005 и балансирует между репликами round-robin.
+      - target: 8080
+        published: 3005
+        mode: ingress
+
+    deploy:
+      replicas: 3
+
+      update_config:
+        parallelism: 1        # обновляем по 1 реплике за раз
+        delay: 15s            # пауза между репликами
+        failure_action: rollback
+        order: start-first    # сначала поднять новую → убить старую (zero-downtime)
+        monitor: 30s          # мониторим новую реплику 30 сек перед следующей
+
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+        order: stop-first
+
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+          cpus: "0.25"
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s   # даём время на старт приложения
+
+    networks:
+      - remo-overlay
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  remo-overlay:
+    driver: overlay
+    attachable: true
+    external: true   # создаётся скриптом scripts/swarm-init.sh

@@ -39,6 +39,10 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080
 
+# Привязывает GHCR-пакет к GitHub-репозиторию (отображается на странице репо)
+LABEL org.opencontainers.image.source="https://github.com/u-dev-workspace/Remo2.0"
+LABEL org.opencontainers.image.description="Remo API — backend for contractor platform"
+
 # Для Prisma нужен OpenSSL
 RUN apk add --no-cache openssl
 
@@ -48,8 +52,10 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY package.json ./
 
-COPY .env .env
+# .env НЕ копируем в образ — передаётся через Docker Swarm config или env_file при деплое
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy && node dist/src/main.js"]
+# Миграции запускаются ОТДЕЛЬНО в Jenkins (один раз перед деплоем),
+# чтобы при Swarm с несколькими репликами не было гонки при накате миграций
+CMD ["node", "dist/src/main.js"]

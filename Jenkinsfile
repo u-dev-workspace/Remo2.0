@@ -2,9 +2,9 @@ pipeline {
     agent any
 
     environment {
-        DEPLOY_METHOD = 'test'
-        COMPOSE_FILE = 'docker-prod-compose.yml'
-        APP_NAME = 'remo-api'
+        APP_NAME       = 'remo-api'
+        STACK_NAME     = 'remo'
+        GHCR_IMAGE     = 'ghcr.io/u-dev-workspace/remo-api'
         TELEGRAM_BOT_TOKEN = credentials('telegram-bot-token')
         TELEGRAM_CHAT_ID   = credentials('telegram-chat-id')
     }
@@ -116,12 +116,26 @@ URL: ${env.BUILD_URL}"""
 
         stage('Build and Push Images') {
             steps {
+                // Копируем .env на менеджер (нужен для env_file в stack deploy и для миграций)
                 withCredentials([file(credentialsId: 'remo-api-env', variable: 'API_ENV')]) {
                     sh 'rm -f .env || true'
                     sh 'cp $API_ENV .env'
                 }
                 script {
-                    sh "docker compose -f ${COMPOSE_FILE} build"
+                    def imageTag = "${GHCR_IMAGE}:${env.BUILD_NUMBER}"
+
+                    // Собираем production-образ
+                    sh "docker build -t ${imageTag} -t ${GHCR_IMAGE}:latest ."
+
+                    // Пушим в GitHub Container Registry
+                    withCredentials([string(credentialsId: 'ghcr-token', variable: 'GHCR_TOKEN')]) {
+                        sh "echo \${GHCR_TOKEN} | docker login ghcr.io -u \$(echo ${GHCR_IMAGE} | cut -d/ -f2) --password-stdin"
+                        sh "docker push ${imageTag}"
+                        sh "docker push ${GHCR_IMAGE}:latest"
+                    }
+
+                    // Сохраняем тег для следующих стейджей
+                    env.IMAGE_TAG = imageTag
                 }
             }
         }
@@ -129,9 +143,43 @@ URL: ${env.BUILD_URL}"""
         stage('Deploy') {
             steps {
                 script {
-                    sh "docker compose -f ${COMPOSE_FILE} down"
-                    sh "docker rm -f remo-api || true"
-                    sh "docker compose -f ${COMPOSE_FILE} up -d"
+                    // ── Шаг 1: Миграции (один раз, до запуска реплик) ──────────
+                    sh """
+                        docker run --rm \
+                            --env-file .env \
+                            --network remo-overlay \
+                            ${env.IMAGE_TAG} \
+                            node_modules/.bin/prisma migrate deploy
+                    """
+
+                    // ── Шаг 2: Деплой / rolling update Swarm стека ─────────────
+                    sh """
+                        IMAGE_TAG=${env.IMAGE_TAG} \
+                        docker stack deploy \
+                            --compose-file docker-stack.yml \
+                            --with-registry-auth \
+                            --prune \
+                            ${STACK_NAME}
+                    """
+
+                    // ── Шаг 3: Ждём пока все реплики станут Running ─────────────
+                    sh '''
+                        echo "Ожидаем сходимости сервиса..."
+                        for i in $(seq 1 30); do
+                            REPLICAS=$(docker service ls --filter name=remo_app --format "{{.Replicas}}" 2>/dev/null || echo "0/0")
+                            RUNNING=$(echo "$REPLICAS" | cut -d/ -f1)
+                            DESIRED=$(echo "$REPLICAS" | cut -d/ -f2)
+                            echo "  Реплики: $RUNNING/$DESIRED"
+                            if [ "$RUNNING" = "$DESIRED" ] && [ "$DESIRED" != "0" ]; then
+                                echo "✓ Все $DESIRED реплики запущены"
+                                exit 0
+                            fi
+                            sleep 10
+                        done
+                        echo "⚠ Таймаут ожидания реплик (5 мин)"
+                        docker service ps remo_app --no-trunc
+                        exit 1
+                    '''
                 }
             }
         }
