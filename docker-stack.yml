@@ -64,7 +64,7 @@ services:
       start_period: 60s   # даём время на старт приложения
 
     networks:
-      - remo-overlay
+      - remo-network
 
     logging:
       driver: "json-file"
@@ -73,7 +73,7 @@ services:
         max-file: "5"
 
 networks:
-  remo-overlay:
+  remo-network:
     driver: overlay
     attachable: true
     external: true   # создаётся скриптом scripts/swarm-init.sh

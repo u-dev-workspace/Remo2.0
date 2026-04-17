@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-NETWORK_NAME="remo-overlay"
+NETWORK_NAME="remo-network"
 MANAGER_IP="${SWARM_ADVERTISE_ADDR:-$(hostname -I | awk '{print $1}')}"
 
 echo ""
