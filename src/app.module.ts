@@ -26,6 +26,7 @@ import { AttachmentRouterModule } from './attachment-router/attachment-router.mo
 import { CompanyService } from './company/company.service';
 import { CompanyModule } from './company/company.module';
 import { LoggerModule } from 'nestjs-pino';
+import { MetricsModule } from './common/metrics/metrics.module';
 
 
 
@@ -53,6 +54,7 @@ import { LoggerModule } from 'nestjs-pino';
         MinioModule,
         AttachmentRouterModule,
         CompanyModule,
+        MetricsModule,
         EventEmitterModule.forRoot(),
         LoggerModule.forRoot({
             pinoHttp: {

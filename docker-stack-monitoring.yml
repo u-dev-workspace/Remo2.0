@@ -1,0 +1,156 @@
+# Docker Swarm Monitoring Stack
+# Деплой: docker stack deploy -c docker-stack-monitoring.yml monitoring
+#
+# Включает: Prometheus + Loki + Promtail + Grafana + Node Exporter + cAdvisor
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ─── Prometheus: сбор метрик ──────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - prometheus-data:/prometheus
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - target: 9090
+        published: 9090
+        mode: ingress
+    networks:
+      - monitoring
+      - remo-overlay    # доступ к app-репликам для scrape
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+
+  # ─── Loki: агрегация логов ────────────────────────────────────
+  loki:
+    image: grafana/loki:3.1.0
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - loki-data:/loki
+      - ./monitoring/loki/config.yml:/etc/loki/config.yml:ro
+    ports:
+      - target: 3100
+        published: 3100
+        mode: ingress
+    networks:
+      - monitoring
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 256M
+
+  # ─── Promtail: сборщик логов (на каждом узле) ─────────────────
+  promtail:
+    image: grafana/promtail:3.1.0
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/promtail/config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - monitoring
+    deploy:
+      mode: global          # по одному экземпляру на КАЖДОМ узле
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+        reservations:
+          memory: 64M
+
+  # ─── Grafana: дашборды и визуализация ─────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - target: 3000
+        published: 3000
+        mode: ingress
+    networks:
+      - monitoring
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+
+  # ─── Node Exporter: метрики хоста (CPU, RAM, disk) ────────────
+  node-exporter:
+    image: prom/node-exporter:v1.8.1
+    command:
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring
+    deploy:
+      mode: global          # на каждом узле
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.25"
+
+  # ─── cAdvisor: метрики контейнеров ────────────────────────────
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - monitoring
+    deploy:
+      mode: global          # на каждом узле
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+
+volumes:
+  prometheus-data:
+  loki-data:
+  grafana-data:
+
+networks:
+  monitoring:
+    driver: overlay
+    attachable: true
+  remo-overlay:
+    external: true          # создана swarm-init.sh, shared с app-стеком

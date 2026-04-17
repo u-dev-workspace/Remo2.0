@@ -12,7 +12,11 @@
       "Bash(python3 -c \":*)",
       "Bash(npx prisma:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx jest:*)"
+      "Bash(npx jest:*)",
+      "Bash(yarn prisma *)",
+      "Bash(yarn build *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(git add *)"
     ]
   }
 }

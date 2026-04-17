@@ -3,23 +3,31 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  # Сам Prometheus
+  # Prometheus self-monitoring
   - job_name: "prometheus"
     static_configs:
-      - targets: ["remo-prometheus:9090"]
+      - targets: ["localhost:9090"]
 
-  # Твой API (работает только если есть эндпоинт /metrics)
+  # Remo API — все реплики через Swarm DNS
+  # tasks.remo_app резолвит IP всех running-реплик сервиса
   - job_name: "remo-api"
+    dns_sd_configs:
+      - names: ["tasks.remo_app"]
+        type: A
+        port: 8080
     metrics_path: /metrics
-    static_configs:
-      - targets: ["remo-api:8080"]
 
-  # Метрики хоста (если ты запускал node_exporter)
+  # Node Exporter — метрики хоста (CPU, RAM, disk, network)
+  # global mode = по одному на каждом узле кластера
   - job_name: "node-exporter"
-    static_configs:
-      - targets: ["remo-node-exporter:9100"]
+    dns_sd_configs:
+      - names: ["tasks.monitoring_node-exporter"]
+        type: A
+        port: 9100
 
-  # Метрики контейнеров (если запускал cadvisor)
+  # cAdvisor — метрики контейнеров (CPU, memory, network per container)
   - job_name: "cadvisor"
-    static_configs:
-      - targets: ["remo-cadvisor:8080"]
+    dns_sd_configs:
+      - names: ["tasks.monitoring_cadvisor"]
+        type: A
+        port: 8080
