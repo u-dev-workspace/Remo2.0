@@ -57,11 +57,11 @@ services:
           cpus: "0.25"
 
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s   # даём время на старт приложения
+      retries: 5
+      start_period: 90s   # даём больше времени на старт + прогрев
 
     networks:
       - remo-swarm
