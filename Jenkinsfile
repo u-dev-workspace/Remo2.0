@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         APP_NAME       = 'remo-api'
-        STACK_NAME     = 'remo'
+        STACK_NAME     = 'remo-api'
         GHCR_IMAGE     = 'ghcr.io/u-dev-workspace/remo-api'
         TELEGRAM_BOT_TOKEN = credentials('telegram-bot-token')
         TELEGRAM_CHAT_ID   = credentials('telegram-chat-id')

@@ -3,7 +3,7 @@
 #
 # Перед первым деплоем запустить: bash scripts/swarm-init.sh
 # ──────────────────────────────────────────────────────────────
-
+version: "3.8"
 services:
   app:
     image: ${IMAGE_TAG:-ghcr.io/u-dev-workspace/remo-api:latest}
