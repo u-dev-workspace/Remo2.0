@@ -147,6 +147,10 @@ export class SearchService {
         categories: { select: { id: true, name: true } },
         services: { select: {service: true} },
         status: true,
+        area: true,
+        budgetEstimated: true,
+        propertyType: true,
+
       },
     });
 
