@@ -1,19 +1,9 @@
-# Docker Swarm Stack — remo-api
-# Деплой: IMAGE_TAG=ghcr.io/ORG/remo-api:BUILD docker stack deploy -c docker-stack.yml remo
-#
-# Перед первым деплоем запустить: bash scripts/swarm-init.sh
-# ──────────────────────────────────────────────────────────────
-version: "3.8"
 services:
   node:
-    image: ${IMAGE_TAG:-ghcr.io/u-dev-workspace/remo-api:latest}
+    image: ${IMAGE_TAG:-storage.centi.space/remo-api:latest}
 
-    # Запускаем только само приложение.
-    # Миграции прогоняются один раз в Jenkins перед stack deploy.
     command: ["node", "dist/src/main.js"]
 
-    # env_file резолвится на manager-ноде во время деплоя и рассылается
-    # всем репликам через Swarm service spec — файл нужен только на менеджере.
     env_file: .env
 
     environment:
@@ -21,8 +11,6 @@ services:
       PORT: "8080"
 
     ports:
-      # mode: ingress — Swarm routing mesh: любой узел кластера принимает
-      # трафик на 3005 и балансирует между репликами round-robin.
       - target: 8080
         published: 3005
         mode: ingress
@@ -31,11 +19,11 @@ services:
       replicas: 3
 
       update_config:
-        parallelism: 1        # обновляем по 1 реплике за раз
-        delay: 15s            # пауза между репликами
+        parallelism: 1
+        delay: 15s
         failure_action: rollback
-        order: start-first    # сначала поднять новую → убить старую (zero-downtime)
-        monitor: 30s          # мониторим новую реплику 30 сек перед следующей
+        order: start-first
+        monitor: 30s
 
       rollback_config:
         parallelism: 1
@@ -61,7 +49,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 90s   # даём больше времени на старт + прогрев
+      start_period: 90s
 
     networks:
       - remo-swarm
@@ -76,4 +64,4 @@ networks:
   remo-swarm:
     driver: overlay
     attachable: true
-    external: true   # создаётся скриптом scripts/swarm-init.sh
+    external: true

@@ -2,9 +2,10 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME       = 'remo-api'
-        STACK_NAME     = 'remo-api'
-        GHCR_IMAGE     = 'ghcr.io/u-dev-workspace/remo-api'
+        APP_NAME           = 'remo-api'
+        STACK_NAME         = 'remo-api'
+        REGISTRY           = 'storage.centi.space'
+        IMAGE_NAME         = 'remo-api'
         TELEGRAM_BOT_TOKEN = credentials('telegram-bot-token')
         TELEGRAM_CHAT_ID   = credentials('telegram-chat-id')
     }
@@ -32,7 +33,6 @@ Stage: Test
 URL: ${env.BUILD_URL}"""
 
                         def safeText = text.replace('"', '\\"')
-
                         sh """
                           curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
                             -d chat_id="\${TELEGRAM_CHAT_ID}" \
@@ -116,25 +116,26 @@ URL: ${env.BUILD_URL}"""
 
         stage('Build and Push Images') {
             steps {
-                // Копируем .env на менеджер (нужен для env_file в stack deploy и для миграций)
                 withCredentials([file(credentialsId: 'remo-api-env', variable: 'API_ENV')]) {
                     sh 'rm -f .env || true'
                     sh 'cp $API_ENV .env'
                 }
                 script {
-                    def imageTag = "${GHCR_IMAGE}:${env.BUILD_NUMBER}"
+                    def imageTag    = "${env.REGISTRY}/${env.IMAGE_NAME}:${env.BUILD_NUMBER}"
+                    def imageLatest = "${env.REGISTRY}/${env.IMAGE_NAME}:latest"
 
-                    // Собираем production-образ
-                    sh "docker build -t ${imageTag} -t ${GHCR_IMAGE}:latest ."
+                    sh "docker build -t ${imageTag} -t ${imageLatest} ."
 
-                    // Пушим в GitHub Container Registry
-                    withCredentials([string(credentialsId: 'ghcr-token', variable: 'GHCR_TOKEN')]) {
-                        sh "echo \${GHCR_TOKEN} | docker login ghcr.io -u \$(echo ${GHCR_IMAGE} | cut -d/ -f2) --password-stdin"
+                    withCredentials([usernamePassword(
+                        credentialsId: 'registry-credentials',
+                        usernameVariable: 'REG_USER',
+                        passwordVariable: 'REG_PASS'
+                    )]) {
+                        sh "echo \${REG_PASS} | docker login ${env.REGISTRY} -u \${REG_USER} --password-stdin"
                         sh "docker push ${imageTag}"
-                        sh "docker push ${GHCR_IMAGE}:latest"
+                        sh "docker push ${imageLatest}"
                     }
 
-                    // Сохраняем тег для следующих стейджей
                     env.IMAGE_TAG = imageTag
                 }
             }
@@ -143,7 +144,6 @@ URL: ${env.BUILD_URL}"""
         stage('Deploy') {
             steps {
                 script {
-                    // ── Шаг 1: Миграции (один раз, до запуска реплик) ──────────
                     sh """
                         docker run --rm \
                             --env-file .env \
@@ -152,21 +152,18 @@ URL: ${env.BUILD_URL}"""
                             node_modules/.bin/prisma migrate deploy
                     """
 
-                    // ── Шаг 2: Деплой / rolling update Swarm стека ─────────────
                     sh """
                         IMAGE_TAG=${env.IMAGE_TAG} \
                         docker stack deploy \
                             --compose-file docker-stack.yml \
                             --with-registry-auth \
-                            --prune \
                             ${STACK_NAME}
                     """
 
-                    // ── Шаг 3: Ждём пока все реплики станут Running ─────────────
                     sh '''
                         echo "Ожидаем сходимости сервиса..."
                         for i in $(seq 1 30); do
-                            REPLICAS=$(docker service ls --filter name=remo_app --format "{{.Replicas}}" 2>/dev/null || echo "0/0")
+                            REPLICAS=$(docker service ls --filter name=remo-api_node --format "{{.Replicas}}" 2>/dev/null || echo "0/0")
                             RUNNING=$(echo "$REPLICAS" | cut -d/ -f1)
                             DESIRED=$(echo "$REPLICAS" | cut -d/ -f2)
                             echo "  Реплики: $RUNNING/$DESIRED"
@@ -177,7 +174,7 @@ URL: ${env.BUILD_URL}"""
                             sleep 10
                         done
                         echo "⚠ Таймаут ожидания реплик (5 мин)"
-                        docker service ps remo_app --no-trunc
+                        docker service ps remo-api_node --no-trunc
                         exit 1
                     '''
                 }
@@ -239,9 +236,7 @@ Job: ${env.JOB_NAME}
 Build: #${env.BUILD_NUMBER}
 Status: FAILURE
 URL: ${env.BUILD_URL}"""
-
                 def safeText = text.replace('"', '\\"')
-
                 sh """
                   curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
                     -d chat_id="\${TELEGRAM_CHAT_ID}" \
@@ -257,9 +252,7 @@ Job: ${env.JOB_NAME}
 Build: #${env.BUILD_NUMBER}
 Status: SUCCESS
 URL: ${env.BUILD_URL}"""
-
                 def safeText = text.replace('"', '\\"')
-
                 sh """
                   curl -s -X POST "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage" \
                     -d chat_id="\${TELEGRAM_CHAT_ID}" \
