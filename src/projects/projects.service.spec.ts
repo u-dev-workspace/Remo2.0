@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ProjectsService } from './projects.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../minio/minio.service';
+import { MetricsService } from '../common/metrics/metrics.service';
 
 const mockPrisma = {
   project: { findMany: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() },
@@ -9,6 +10,10 @@ const mockPrisma = {
 };
 
 const mockMinio = { putObject: jest.fn(), getObject: jest.fn(), removeObject: jest.fn() };
+
+const mockMetrics = {
+  projectsCreatedTotal: { inc: jest.fn() },
+};
 
 describe('ProjectsService', () => {
   let service: ProjectsService;
@@ -19,6 +24,7 @@ describe('ProjectsService', () => {
         ProjectsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: MinioService, useValue: mockMinio },
+        { provide: MetricsService, useValue: mockMetrics },
       ],
     }).compile();
 

@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { MetricsService } from '../common/metrics/metrics.service';
 
 const mockPrisma = {
   user: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -9,6 +10,10 @@ const mockPrisma = {
 };
 
 const mockJwt = { sign: jest.fn(), verify: jest.fn() };
+
+const mockMetrics = {
+  authAttemptsTotal: { inc: jest.fn() },
+};
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -19,6 +24,7 @@ describe('AuthService', () => {
         AuthService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
+        { provide: MetricsService, useValue: mockMetrics },
       ],
     }).compile();
 
