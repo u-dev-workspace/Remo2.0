@@ -13,27 +13,56 @@ export class MetricsInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const req = context.switchToHttp().getRequest();
-    const method = req.method ?? 'UNKNOWN';
+    if (!req) return next.handle(); // WebSocket или TCP — пропускаем
 
-    // route = pattern из декоратора (напр. /projects/:id), fallback на URL
-    const route = req.routeOptions?.url ?? req.routerPath ?? req.url ?? '/';
+    const method: string = req.method ?? 'UNKNOWN';
+    const route: string =
+      req.routeOptions?.url ??
+      req.routerPath ??
+      req.url?.split('?')[0] ??
+      '/';
+
+    // Пропускаем сам /metrics чтобы не было рекурсии
+    if (route === '/metrics') return next.handle();
+
+    const contentLength = parseInt(req.headers?.['content-length'] ?? '0', 10);
+    if (contentLength > 0) {
+      this.metrics.httpRequestSize.observe({ method, route }, contentLength);
+    }
 
     this.metrics.httpActiveRequests.inc();
-    const end = this.metrics.httpRequestDuration.startTimer({ method, route });
+    const endTimer = this.metrics.httpRequestDuration.startTimer({ method, route });
 
     return next.handle().pipe(
       tap({
         next: () => {
           const res = context.switchToHttp().getResponse();
           const statusCode = String(res.statusCode ?? 200);
-          end({ status_code: statusCode });
-          this.metrics.httpRequestsTotal.inc({ method, route, status_code: statusCode });
+          const statusClass = `${statusCode[0]}xx`;
+
+          endTimer({ status_code: statusCode });
+          this.metrics.httpRequestsTotal.inc({ method, route, status_code: statusCode, status_class: statusClass });
           this.metrics.httpActiveRequests.dec();
+
+          // Размер ответа
+          const resLength = parseInt(res.getHeader?.('content-length') ?? '0', 10);
+          if (resLength > 0) {
+            this.metrics.httpResponseSize.observe({ method, route, status_code: statusCode }, resLength);
+          }
+
+          // Считаем 4xx и 5xx как ошибки
+          const code = res.statusCode ?? 200;
+          if (code >= 400) {
+            this.metrics.httpErrorsTotal.inc({ method, route, status_code: statusCode });
+          }
         },
         error: (err) => {
           const statusCode = String(err.status ?? err.statusCode ?? 500);
-          end({ status_code: statusCode });
-          this.metrics.httpRequestsTotal.inc({ method, route, status_code: statusCode });
+          const statusClass = `${statusCode[0]}xx`;
+
+          endTimer({ status_code: statusCode });
+          this.metrics.httpRequestsTotal.inc({ method, route, status_code: statusCode, status_class: statusClass });
+          this.metrics.httpErrorsTotal.inc({ method, route, status_code: statusCode });
           this.metrics.httpActiveRequests.dec();
         },
       }),
