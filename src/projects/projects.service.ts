@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MetricsService } from '../common/metrics/metrics.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { randomUUID, createHash  } from 'crypto';
@@ -47,6 +48,7 @@ export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly minio: MinioService,
+    private readonly metrics: MetricsService,
   ) {}
 
   private async assertAllCategoriesExist(ids: string[]) {
@@ -485,6 +487,8 @@ export class ProjectsService {
           });
         }
       }
+
+      this.metrics.projectsCreatedTotal.inc({ status: resolvedStatus });
 
       // вернём проект с полями для фронта
       return tx.project.findUnique({

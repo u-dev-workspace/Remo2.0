@@ -5,10 +5,14 @@ import { CitySuggestQueryDto } from './dto/city-suggest.dto';
 import { SearchContractorsQueryDto } from './dto/search-contractors.dto';
 import { SearchProjectsQueryDto } from './dto/search-projects.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { MetricsService } from '../common/metrics/metrics.service';
 
 @Injectable()
 export class SearchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
   private readonly logger = new Logger(SearchService.name);
   // -------- Cities --------
   async listCities(dto: CityListQueryDto) {
@@ -66,6 +70,7 @@ export class SearchService {
     dto: SearchContractorsQueryDto,
     currentUserId: string,
   ) {
+    this.metrics.searchQueriesTotal.inc({ type: 'contractors' });
     const take = Math.min(Math.max(dto.take ?? 20, 1), 100);
 
     let cityId = dto.cityId ?? null;
@@ -118,6 +123,7 @@ export class SearchService {
 
   // -------- Projects by city --------
   async searchProjects(dto: SearchProjectsQueryDto) {
+    this.metrics.searchQueriesTotal.inc({ type: 'projects' });
     const take = Math.min(Math.max(dto.take ?? 20, 1), 100);
 
     let cityId = dto.cityId ?? null;

@@ -6,6 +6,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MetricsService } from '../common/metrics/metrics.service';
 import * as argon2 from 'argon2';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
@@ -17,7 +18,11 @@ type RegisterInput = {
 
 @Injectable()
 export class AuthService {
-    constructor(private prisma: PrismaService, private jwt: JwtService) {}
+    constructor(
+        private prisma: PrismaService,
+        private jwt: JwtService,
+        private metrics: MetricsService,
+    ) {}
 
     async register(data: RegisterInput) {
         try {
@@ -48,8 +53,10 @@ export class AuthService {
                 return user;
             });
 
+            this.metrics.authAttemptsTotal.inc({ result: 'register_success' });
             return this.issueTokens(result.id, result.role);
         } catch (e: any) {
+            this.metrics.authAttemptsTotal.inc({ result: 'register_failure' });
             if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
                 throw new ConflictException('Email already in use');
             }
@@ -62,8 +69,10 @@ export class AuthService {
     async login(email: string, password: string) {
         const user = await this.prisma.user.findUnique({ where: { email } });
         if (!user || !user.passwordHash || !(await argon2.verify(user.passwordHash, password))) {
+            this.metrics.authAttemptsTotal.inc({ result: 'login_failure' });
             throw new UnauthorizedException('AUTH_INVALID_CREDENTIALS');
         }
+        this.metrics.authAttemptsTotal.inc({ result: 'login_success' });
         return this.issueTokens(user.id, user.role);
     }
 
