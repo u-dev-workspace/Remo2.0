@@ -133,7 +133,10 @@ export class SearchService {
       cityId = city.id;
     }
 
-    const where: Prisma.ProjectWhereInput = cityId ? { cityId } : {};
+    const where: Prisma.ProjectWhereInput = {
+      ...(cityId ? { cityId } : {}),
+      status: { notIn: ['DRAFT', 'ARCHIVED'] },
+    };
 
     const items = await this.prisma.project.findMany({
       where,

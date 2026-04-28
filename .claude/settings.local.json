@@ -16,7 +16,10 @@
       "Bash(yarn prisma *)",
       "Bash(yarn build *)",
       "Bash(echo \"EXIT=$?\")",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit --no-verify -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
