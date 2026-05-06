@@ -6,6 +6,7 @@ import { AddFavoriteDto } from './dto/add-favorite';
 
 import { ListFavoritesDto } from './dto/list-favorites';
 import { Prisma } from '@prisma/client';
+import { PrismaCodes } from '../common/prisma-codes';
 const contractorInclude = {
   contractor: {
     select: {
@@ -154,7 +155,7 @@ export class FavoritesService {
         project: fav.project,
       };
     } catch (e: any) {
-      if (e?.code === 'P2002') {
+      if (e?.code === PrismaCodes.UNIQUE_VIOLATION) {
         // Уже в избранном — достаём существующую запись с тем же include
         const fav = await this.prisma.favorite.findUnique({
           where: {
@@ -178,7 +179,7 @@ export class FavoritesService {
         };
       }
 
-      if (e?.code === 'P2003') {
+      if (e?.code === PrismaCodes.FOREIGN_KEY_VIOLATION) {
         throw new NotFoundException('Project not found');
       }
 
@@ -315,7 +316,7 @@ export class FavoritesService {
       };
     } catch (e: any) {
       // уникальный индекс (userId + contractorId)
-      if (e?.code === 'P2002') {
+      if (e?.code === PrismaCodes.UNIQUE_VIOLATION) {
         const fav = await this.prisma.favoriteContractor.findUnique({
           where: {
             uniq_favorite_user_contractor: {
@@ -338,7 +339,7 @@ export class FavoritesService {
         };
       }
 
-      if (e?.code === 'P2003') {
+      if (e?.code === PrismaCodes.FOREIGN_KEY_VIOLATION) {
         // FK на подрядчика
         throw new NotFoundException('Contractor not found');
       }

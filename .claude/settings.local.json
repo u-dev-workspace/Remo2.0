@@ -19,7 +19,9 @@
       "Bash(git add *)",
       "Bash(git commit --no-verify -m ' *)",
       "Bash(git push *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(node -e \"const {Document}=require\\('docx'\\); console.log\\('docx ok'\\)\")",
+      "Bash(node \"C:\\\\Users\\\\L0veL1v3\\\\AppData\\\\Local\\\\Temp\\\\gen_remo_doc.js\")"
     ]
   }
 }

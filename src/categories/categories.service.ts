@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { PrismaCodes } from '../common/prisma-codes';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
@@ -12,7 +13,7 @@ export class CategoriesService {
         try {
             return await this.prisma.category.create({ data: { name: dto.name } });
         } catch (e) {
-            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === PrismaCodes.UNIQUE_VIOLATION) {
                 throw new ConflictException('Такая категория уже существует');
             }
             throw e;

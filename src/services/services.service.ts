@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Service } from '@prisma/client';
+import { PrismaCodes } from '../common/prisma-codes';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListServicesQueryDto } from './dto/list-services';
 import { SetServiceCategoriesDto } from './dto/set-service-categories.dto';
@@ -134,11 +135,11 @@ export class ServicesService {
       return created;
     } catch (e: any) {
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
-        if (e.code === 'P2002') {
+        if (e.code === PrismaCodes.UNIQUE_VIOLATION) {
           // unique (скорее всего slug)
           throw new ConflictException('Service with this slug already exists');
         }
-        if (e.code === 'P2003') {
+        if (e.code === PrismaCodes.FOREIGN_KEY_VIOLATION) {
           throw new BadRequestException('Invalid categoryIds (FK error)');
         }
       }

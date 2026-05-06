@@ -9,7 +9,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Conversation, Message, Prisma } from '@prisma/client';
 
-import now = jest.now;
 import { NotificationsService } from '../notifications/notifications.service';
 import { ListConversationsQueryDto } from './dto/ListConversationsQueryDto';
 import { MinioService } from '../minio/minio.service';

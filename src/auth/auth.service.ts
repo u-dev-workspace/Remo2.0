@@ -10,6 +10,7 @@ import { MetricsService } from '../common/metrics/metrics.service';
 import * as argon2 from 'argon2';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
+import { PrismaCodes } from '../common/prisma-codes';
 
 type RegisterInput = {
     email: string; password: string;
@@ -57,7 +58,7 @@ export class AuthService {
             return this.issueTokens(result.id, result.role);
         } catch (e: any) {
             this.metrics.authAttemptsTotal.inc({ result: 'register_failure' });
-            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === PrismaCodes.UNIQUE_VIOLATION) {
                 throw new ConflictException('Email already in use');
             }
             console.error('REGISTER_ERROR', e);

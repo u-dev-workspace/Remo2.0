@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { ReorderShowcaseDto, SetShowcaseDto } from './dto/showcase.dto';
 import { Prisma } from '@prisma/client';
+import { PrismaCodes } from '../common/prisma-codes';
 
 @Injectable()
 export class ShowcaseService {
@@ -141,13 +142,13 @@ export class ShowcaseService {
       return this.getContractorShowcase(contractorId);
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
-        if (e.code === 'P2002') {
+        if (e.code === PrismaCodes.UNIQUE_VIOLATION) {
           // нарушение уникального индекса (позиция/вложение)
           throw new BadRequestException(
             'Duplicate position or attachment for this contractor',
           );
         }
-        if (e.code === 'P2003') {
+        if (e.code === PrismaCodes.FOREIGN_KEY_VIOLATION) {
           // внешние ключи
           throw new BadRequestException(
             'Attachment not found or wrong type/table for contractor showcase',
